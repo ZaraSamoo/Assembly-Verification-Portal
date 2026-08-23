@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Assembly Verification Portal (`assembly-portal`)
 
-## Getting Started
+Multi-campus daily assembly monitoring web application built with **Next.js 14+ (App Router)** and **Supabase**.
 
-First, run the development server:
+## Tech Stack
+- **Framework**: Next.js (App Router, TypeScript, `src/` directory layout)
+- **Styling**: Tailwind CSS, Lucide React
+- **Database & Storage**: Supabase (`@supabase/supabase-js`, `@supabase/ssr`)
+- **Utilities**: `browser-image-compression`, `date-fns`, `clsx`, `tailwind-merge`
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+## Role-Based Architecture & Pages
+
+1. **Principal Portal (`/principal`)**:
+   - Mobile-first capture screen optimized for smartphones.
+   - Rear/environment camera HTML5 trigger: `<input type="file" accept="image/*" capture="environment" />`.
+   - Client-side WebP compression (<300 KB, max 1280px dimension) via `browser-image-compression`.
+   - Direct storage uploads targeting Supabase Storage bucket `assembly-photos`.
+   - Real-time status tracker (Submitted vs Pending, Late indicator for uploads after 10:30 AM).
+
+2. **Finance Officer Portal (`/finance`)**:
+   - Regionally scoped daily verification grid.
+   - 1-click status actions ("Verify", "Flag").
+   - Delinquency counter & non-compliant campus tracker.
+   - Historical date picker filter.
+
+3. **Regional Director Portal (`/director`)**:
+   - Nationwide executive overview across all regions.
+   - Top KPI cards: Total Campuses Nationwide, Total Assemblies Held, National Compliance %.
+   - Comparative regional breakdown table with progress visualizers.
+   - 1-click CSV export utility.
+
+---
+
+## Supabase Setup & Migrations
+
+Database migration files are located under `supabase/migrations/`:
+1. `001_initial_schema.sql`: Table structure for `regions`, `campuses`, `profiles`, and `assembly_submissions`.
+2. `002_rls_policies.sql`: Row Level Security policies scoping reads/writes by role & region + bucket configuration.
+3. `seed.sql`: Sample region and campus seed data.
+
+### Environment Setup
+Copy `.env.example` to `.env.local` and provide your Supabase credentials:
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Development
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# Install dependencies
+npm install
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Run dev server
+npm run dev
+```
