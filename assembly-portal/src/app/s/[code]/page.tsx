@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import {
   Camera,
   Upload,
@@ -20,166 +20,165 @@ import {
   Sparkles,
   CheckCircle,
   FileCheck,
-  LogOut
+  AlertOctagon,
+  RefreshCw
 } from 'lucide-react';
 import { compressAssemblyImage, CompressionResult } from '@/utils/imageCompression';
 import { createClient } from '@/lib/supabase/client';
 
-interface InstitutionInfo {
-  id: string;
-  name: string;
+interface InstitutionDetails {
+  id: number | string;
   code: string;
-}
-
-interface ProfileDetails {
-  id: string;
-  full_name: string;
-  role: string;
-  institution_id?: string;
-  institutions?: InstitutionInfo | null;
+  name: string;
+  is_active?: boolean;
 }
 
 interface SubmissionRecord {
-  id: string;
-  institution_id: string;
-  principal_id?: string;
+  id: number | string;
+  institution_id: number | string;
+  submitted_by?: string;
+  submission_date?: string;
+  submission_time?: string;
   image_url?: string;
   photo_url?: string;
-  submitted_at?: string;
-  created_at: string;
-  is_late: boolean;
   status: string;
+  is_late: boolean;
+  created_at: string;
 }
 
-export default function PrincipalPortal() {
-  const router = useRouter();
-  const [profile, setProfile] = useState<ProfileDetails | null>(null);
-  const [userFallbackName, setUserFallbackName] = useState<string>('');
-  const [loadingProfile, setLoadingProfile] = useState(true);
+export default function MagicLinkAccessPage() {
+  const params = useParams();
+  const code = (params?.code as string) || '';
+
+  const [institution, setInstitution] = useState<InstitutionDetails | null>(null);
+  const [principalName, setPrincipalName] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [invalidLink, setInvalidLink] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
   const [todaySubmission, setTodaySubmission] = useState<SubmissionRecord | null>(null);
   const [history, setHistory] = useState<SubmissionRecord[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
-  const [loggingOut, setLoggingOut] = useState(false);
-
-  const handleLogout = async () => {
-    try {
-      setLoggingOut(true);
-      const supabase = createClient();
-      await supabase.auth.signOut();
-      router.push('/');
-      router.refresh();
-    } catch (err) {
-      console.error('Sign-out error:', err);
-    } finally {
-      setLoggingOut(false);
-    }
-  };
-
-  // Tab State: 'today' vs 'history'
   const [activeTab, setActiveTab] = useState<'today' | 'history'>('today');
 
-  // File Input Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const [fileResult, setFileResult] = useState<CompressionResult | null>(null);
   const [compressing, setCompressing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [isLate, setIsLate] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
-
-  // Lightbox Modal State
   const [modalImage, setModalImage] = useState<string | null>(null);
 
+  // Check 30-Minute Auto-Expiry via sessionStorage
+  const checkSessionTimeout = useCallback(() => {
+    const key = `access_timestamp_${code}`;
+    const stored = sessionStorage.getItem(key);
+    const now = Date.now();
+
+    if (!stored) {
+      sessionStorage.setItem(key, now.toString());
+      return false;
+    } else {
+      const elapsed = now - parseInt(stored, 10);
+      if (elapsed > 30 * 60 * 1000) {
+        return true;
+      }
+    }
+    return false;
+  }, [code]);
+
   const loadData = useCallback(async () => {
-    setLoadingData(true);
+    if (!code) {
+      setInvalidLink(true);
+      setLoading(false);
+      return;
+    }
+
+    if (checkSessionTimeout()) {
+      setSessionExpired(true);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
 
-      if (!user) {
-        setLoadingProfile(false);
-        setLoadingData(false);
+      // 1. Query institution by short_code (or code fallback)
+      const queryInst: any = supabase.from('institutions');
+      let { data: instData, error: instError } = await queryInst
+        .select('id, code, name, is_active')
+        .ilike('short_code', code)
+        .single();
+
+      if (instError || !instData) {
+        // Fallback query matching code
+        const fallbackRes = await queryInst
+          .select('id, code, name, is_active')
+          .ilike('code', code)
+          .single();
+        instData = fallbackRes.data;
+        instError = fallbackRes.error;
+      }
+
+      if (instError || !instData || instData.is_active === false) {
+        setInvalidLink(true);
+        setLoading(false);
         return;
       }
 
-      setUserFallbackName(user.user_metadata?.full_name || 'Principal User');
+      setInstitution(instData as InstitutionDetails);
 
-      // 1. Query profiles table joining ONLY institutions(...) schema
+      // 2. Fetch associated principal profile
       const queryProf: any = supabase.from('profiles');
-      const { data: profData, error: profError } = await queryProf
-        .select(`
-          full_name, role, region_id,
-          institutions ( id, code, name )
-        `)
-        .eq('id', user.id)
+      const { data: profData } = await queryProf
+        .select('full_name')
+        .or(`institution_id.eq.${instData.id},campus_id.eq.${instData.id}`)
         .single();
 
-      if (profError) {
-        console.warn('Profile query error:', profError);
+      if (profData?.full_name) {
+        setPrincipalName(profData.full_name);
       }
 
-      if (profData) {
-        const inst = profData.institutions || null;
-        const profileObj: ProfileDetails = {
-          id: user.id,
-          full_name: profData.full_name || user.user_metadata?.full_name || 'Principal',
-          role: profData.role,
-          institution_id: inst?.id || undefined,
-          institutions: inst,
-        };
-        setProfile(profileObj);
+      // 3. Fetch 30-day submissions for today's check and history
+      const thirtyDaysAgoIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const querySub: any = supabase.from('assembly_submissions');
+      const { data: subData } = await querySub
+        .select('*')
+        .or(`institution_id.eq.${instData.id},campus_id.eq.${instData.id}`)
+        .gte('created_at', thirtyDaysAgoIso)
+        .order('created_at', { ascending: false });
 
-        const instId = profileObj.institution_id;
-        if (instId) {
-          const thirtyDaysAgoIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      if (subData) {
+        const records = subData.map((item: any) => ({
+          id: item.id,
+          institution_id: item.institution_id || item.campus_id || instData.id,
+          submitted_by: item.submitted_by || item.principal_id,
+          submission_date: item.submission_date || (item.created_at || '').split('T')[0],
+          submission_time: item.submission_time || item.submitted_at || item.created_at,
+          image_url: item.image_url || item.photo_url,
+          photo_url: item.photo_url || item.image_url,
+          status: item.status,
+          is_late: item.is_late,
+          created_at: item.created_at,
+        })) as SubmissionRecord[];
 
-          // 2. Fetch 30-day submissions for institution_id from assembly_submissions table
-          const queryAssemblySub: any = supabase.from('assembly_submissions');
-          const { data: assemblyData, error: subError } = await queryAssemblySub
-            .select('*')
-            .eq('campus_id', instId)
-            .gte('created_at', thirtyDaysAgoIso)
-            .order('created_at', { ascending: false });
+        setHistory(records);
 
-          let historyRecords: SubmissionRecord[] = [];
-          if (!subError && assemblyData) {
-            historyRecords = assemblyData.map((item: any) => ({
-              id: item.id,
-              institution_id: item.campus_id || instId,
-              principal_id: item.principal_id,
-              image_url: item.photo_url || item.image_url,
-              photo_url: item.photo_url || item.image_url,
-              submitted_at: item.submitted_at || item.created_at,
-              created_at: item.created_at,
-              is_late: item.is_late,
-              status: item.status,
-            }));
-          }
-
-          setHistory(historyRecords);
-
-          // Check if today's submission exists
-          const todayStart = new Date();
-          todayStart.setHours(0, 0, 0, 0);
-
-          const todayEntry = historyRecords.find((sub) => {
-            const subDate = new Date(sub.submitted_at || sub.created_at);
-            return subDate >= todayStart;
-          });
-
-          if (todayEntry) {
-            setTodaySubmission(todayEntry);
-          }
+        // Check if submission exists today
+        const todayDateStr = new Date().toISOString().split('T')[0];
+        const todayEntry = records.find((s) => s.submission_date === todayDateStr);
+        if (todayEntry) {
+          setTodaySubmission(todayEntry);
         }
       }
     } catch (err: any) {
-      console.error('Error fetching portal data:', err);
+      console.error('Error fetching magic link data:', err);
+      setInvalidLink(true);
     } finally {
-      setLoadingProfile(false);
-      setLoadingData(false);
+      setLoading(false);
     }
-  }, []);
+  }, [code, checkSessionTimeout]);
 
   useEffect(() => {
     loadData();
@@ -200,32 +199,32 @@ export default function PrincipalPortal() {
       const result = await compressAssemblyImage(file);
       setFileResult(result);
 
-      // Check cut-off time (10:30 AM)
+      // Cut-off time check (10:30 AM)
       const now = new Date();
       const cutoff = new Date();
       cutoff.setHours(10, 30, 0, 0);
       setIsLate(now > cutoff);
     } catch (err) {
       console.error('Compression failed:', err);
-      setErrorMessage('Failed to process image compression. Please try again.');
+      setErrorMessage('Failed to process photo compression.');
     } finally {
       setCompressing(false);
     }
   };
 
   const handleUpload = async () => {
-    if (!fileResult || todaySubmission) return;
+    if (!fileResult || !institution || todaySubmission) return;
     setUploading(true);
     setErrorMessage(null);
     setSuccessToast(null);
 
     try {
       const supabase = createClient();
-      const instId = profile?.institution_id || 'inst-01';
+      const instId = institution.id;
       const dateStr = new Date().toISOString().split('T')[0];
       const filePath = `${instId}/${dateStr}_${Date.now()}.webp`;
 
-      // 1. Upload to Supabase Storage bucket 'assembly-photos'
+      // 1. Upload WebP to Supabase Storage bucket 'assembly-photos'
       const { data: storageData, error: storageError } = await supabase.storage
         .from('assembly-photos')
         .upload(filePath, fileResult.compressedFile, {
@@ -241,61 +240,62 @@ export default function PrincipalPortal() {
         publicUrl = urlData.publicUrl;
       }
 
-      // 2. Check cut-off time (10:30 AM)
+      // Cut-off check
       const now = new Date();
       const cutoff = new Date();
       cutoff.setHours(10, 30, 0, 0);
       const lateFlag = now > cutoff;
 
-      // 3. Insert row into assembly_submissions table
-      const queryAssembly: any = supabase.from('assembly_submissions');
-      const { data: assInserted, error: assErr } = await queryAssembly
+      // 2. Insert into assembly_submissions table
+      const queryInsert: any = supabase.from('assembly_submissions');
+      const { data: insertedRecord, error: insertError } = await queryInsert
         .insert({
+          institution_id: instId,
           campus_id: instId,
-          principal_id: profile?.id,
+          image_url: publicUrl,
           photo_url: publicUrl,
+          submission_date: dateStr,
+          submission_time: now.toISOString(),
           submitted_at: now.toISOString(),
           is_late: lateFlag,
-          status: 'pending',
+          status: 'submitted',
         })
         .select()
         .single();
 
-      let insertedRecord: SubmissionRecord | null = null;
-      if (!assErr && assInserted) {
-        insertedRecord = {
-          id: assInserted.id,
-          institution_id: assInserted.campus_id || instId,
-          principal_id: assInserted.principal_id,
-          image_url: assInserted.photo_url,
-          photo_url: assInserted.photo_url,
-          submitted_at: assInserted.submitted_at,
-          created_at: assInserted.created_at,
-          is_late: assInserted.is_late,
-          status: assInserted.status,
-        };
-      }
-
-      const newRecord: SubmissionRecord = insertedRecord || {
-        id: `sub-${Date.now()}`,
+      const newRecord: SubmissionRecord = insertedRecord ? {
+        id: insertedRecord.id,
         institution_id: instId,
-        principal_id: profile?.id,
         image_url: publicUrl,
         photo_url: publicUrl,
-        submitted_at: now.toISOString(),
-        created_at: now.toISOString(),
+        submission_date: dateStr,
+        submission_time: now.toISOString(),
         is_late: lateFlag,
         status: 'submitted',
+        created_at: now.toISOString(),
+      } : {
+        id: `sub-${Date.now()}`,
+        institution_id: instId,
+        image_url: publicUrl,
+        photo_url: publicUrl,
+        submission_date: dateStr,
+        submission_time: now.toISOString(),
+        is_late: lateFlag,
+        status: 'submitted',
+        created_at: now.toISOString(),
       };
 
-      // 4. Update local state, lock button, show toast, refresh 30-day logs
+      if (insertError) {
+        console.warn('Assembly submission insert fallback used:', insertError);
+      }
+
       setTodaySubmission(newRecord);
-      setHistory((prev) => [newRecord, ...prev.filter((item) => item.id !== newRecord.id)]);
+      setHistory((prev) => [newRecord, ...prev.filter((i) => i.id !== newRecord.id)]);
       setFileResult(null);
-      setSuccessToast("Today's Assembly photo submitted & locked successfully!");
+      setSuccessToast("Today's Assembly photo uploaded & locked successfully!");
     } catch (err: any) {
       console.error('Upload failed:', err);
-      setErrorMessage(err?.message || 'Upload failed. Please check network connection.');
+      setErrorMessage(err?.message || 'Failed to upload photo. Please check your connection.');
     } finally {
       setUploading(false);
     }
@@ -342,12 +342,56 @@ export default function PrincipalPortal() {
     }
   };
 
-  if (loadingProfile || loadingData) {
+  if (loading) {
     return (
       <main className="bg-[#0B0F17] min-h-screen text-slate-100 p-4 md:p-8 max-w-md mx-auto flex flex-col items-center justify-center space-y-4">
         <div className="p-6 rounded-2xl bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 shadow-xl flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
-          <p className="text-xs font-medium text-slate-400">Loading Principal Portal...</p>
+          <p className="text-xs font-medium text-slate-400">Verifying Magic Access Link...</p>
+        </div>
+      </main>
+    );
+  }
+
+  // 1. Invalid Access Link Card
+  if (invalidLink) {
+    return (
+      <main className="bg-[#0B0F17] min-h-screen text-slate-100 p-4 md:p-8 max-w-md mx-auto flex items-center justify-center">
+        <div className="w-full p-6 rounded-2xl bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 shadow-2xl text-center space-y-4">
+          <div className="p-3 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 w-fit mx-auto">
+            <AlertOctagon className="w-8 h-8" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-100">Invalid Access Link</h2>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            This verification access link is either invalid, revoked, or the institution is inactive. Please contact your regional director for assistance.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  // 2. Session Timed Out Screen
+  if (sessionExpired) {
+    return (
+      <main className="bg-[#0B0F17] min-h-screen text-slate-100 p-4 md:p-8 max-w-md mx-auto flex items-center justify-center">
+        <div className="w-full p-6 rounded-2xl bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 shadow-2xl text-center space-y-4">
+          <div className="p-3 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 w-fit mx-auto">
+            <Clock className="w-8 h-8" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-100">Session Timed Out</h2>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Your 30-minute verification access window has expired for security purposes. Please click your magic access link again to refresh your session.
+          </p>
+          <button
+            onClick={() => {
+              sessionStorage.removeItem(`access_timestamp_${code}`);
+              window.location.reload();
+            }}
+            className="w-full py-2.5 rounded-xl font-semibold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center gap-2 text-xs transition-all shadow-md"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh Session
+          </button>
         </div>
       </main>
     );
@@ -357,10 +401,6 @@ export default function PrincipalPortal() {
   const totalSubmissions = history.length;
   const onTimeCount = history.filter((s) => !s.is_late).length;
   const lateCount = history.filter((s) => s.is_late).length;
-
-  const displayName = profile?.full_name || userFallbackName || 'Prof. Principal';
-  const collegeName = profile?.institutions?.name || 'Government Degree College';
-  const collegeCode = profile?.institutions?.code || 'KQ2145';
 
   return (
     <main
@@ -372,32 +412,18 @@ export default function PrincipalPortal() {
       {/* Header */}
       <header className="flex items-center justify-between pb-4 border-b border-slate-800/80 relative z-10">
         <div className="space-y-0.5">
-          <h1 className="text-xl font-bold text-slate-100 tracking-tight flex items-center gap-2">
-            Principal Portal
+          <h1 className="text-xl font-bold text-slate-100 tracking-tight">
+            Assembly Portal
           </h1>
-          <p className="text-xs text-slate-400">Daily Assembly Verification</p>
+          <p className="text-xs text-slate-400">Direct Principal Access</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleLogout}
-            disabled={loggingOut}
-            className="px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900/60 hover:bg-rose-500/10 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 text-xs font-medium transition-all duration-200 flex items-center gap-2 backdrop-blur-md shadow-sm disabled:opacity-50"
-          >
-            {loggingOut ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-400" />
-            ) : (
-              <LogOut className="w-3.5 h-3.5" />
-            )}
-            Logout
-          </button>
-          <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 shadow-md">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
+        <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 shadow-md">
+          <ShieldCheck className="w-6 h-6" />
         </div>
       </header>
 
-      {/* 1. Dynamic Principal & Institution Card */}
-      <section className="p-5 rounded-2xl bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 hover:border-slate-700/60 shadow-xl relative z-10 space-y-4 transition-all">
+      {/* Institution Card */}
+      <section className="p-5 rounded-2xl bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 shadow-xl relative z-10 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 shrink-0">
@@ -405,27 +431,27 @@ export default function PrincipalPortal() {
             </div>
             <div>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
-                Logged-in Principal
+                Authenticated Principal
               </span>
               <h2 className="text-base font-semibold text-slate-100 leading-tight">
-                {displayName}
+                {principalName || 'Principal Administrator'}
               </h2>
             </div>
           </div>
           <span className="text-xs font-mono font-semibold px-3 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 tracking-wider whitespace-nowrap shrink-0">
-            {collegeCode}
+            {institution?.code || code.toUpperCase()}
           </span>
         </div>
 
         <div className="pt-3 border-t border-slate-800/60 flex items-center gap-2.5 text-xs text-slate-300">
           <Building className="w-4 h-4 text-indigo-400 shrink-0" />
           <span className="font-semibold text-slate-100 whitespace-normal break-words">
-            {collegeName}
+            {institution?.name || 'Institution Campus'}
           </span>
         </div>
       </section>
 
-      {/* 2. Navigation Tabs */}
+      {/* Navigation Tabs */}
       <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 shadow-xl relative z-10">
         <button
           onClick={() => setActiveTab('today')}
@@ -466,7 +492,7 @@ export default function PrincipalPortal() {
         </div>
       )}
 
-      {/* TAB 1: TODAY'S ASSEMBLY UPLOAD */}
+      {/* TAB 1: TODAY'S UPLOAD */}
       {activeTab === 'today' && (
         <div className="space-y-4 relative z-10">
           {/* Status Banner */}
@@ -514,7 +540,7 @@ export default function PrincipalPortal() {
               <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 grid grid-cols-2 gap-2 text-xs text-left">
                 <div>
                   <span className="text-slate-400 block text-[11px]">Submitted At</span>
-                  <span className="font-semibold text-slate-100">{formatTime(todaySubmission.submitted_at || todaySubmission.created_at)}</span>
+                  <span className="font-semibold text-slate-100">{formatTime(todaySubmission.submission_time || todaySubmission.created_at)}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[11px]">Timing Status</span>
@@ -524,7 +550,7 @@ export default function PrincipalPortal() {
                 </div>
               </div>
 
-              {/* WebP Preview Container */}
+              {/* Preview */}
               <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950 group shadow-md">
                 <img
                   src={todaySubmission.image_url || todaySubmission.photo_url}
@@ -611,7 +637,7 @@ export default function PrincipalPortal() {
       {/* TAB 2: 30-DAY HISTORY & METRICS */}
       {activeTab === 'history' && (
         <div className="space-y-4 relative z-10">
-          {/* Analytics Overview Grid */}
+          {/* Analytics Grid */}
           <section className="grid grid-cols-3 gap-2.5 text-center">
             <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl shadow-xl">
               <span className="text-[11px] font-semibold text-slate-400 block">Total Submissions</span>
@@ -633,7 +659,7 @@ export default function PrincipalPortal() {
             </div>
           </section>
 
-          {/* Chronological Submission Logs */}
+          {/* Submission Log */}
           <section className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl shadow-xl space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
               <h3 className="text-xs font-semibold text-slate-100 flex items-center gap-2">
@@ -675,10 +701,10 @@ export default function PrincipalPortal() {
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-1.5 text-slate-100 font-semibold">
                             <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                            {formatDate(item.submitted_at || item.created_at)}
+                            {formatDate(item.submission_time || item.created_at)}
                           </div>
                           <div className="text-[11px] text-slate-400 flex items-center gap-2">
-                            <span>{formatTime(item.submitted_at || item.created_at)}</span>
+                            <span>{formatTime(item.submission_time || item.created_at)}</span>
                             <span>•</span>
                             <span className={item.is_late ? 'text-rose-400 font-medium' : 'text-emerald-400 font-medium'}>
                               {item.is_late ? 'Late' : 'On-Time'}
@@ -697,7 +723,7 @@ export default function PrincipalPortal() {
         </div>
       )}
 
-      {/* Lightbox Image Preview Modal */}
+      {/* Lightbox Preview Modal */}
       {modalImage && (
         <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-4">
           <div className="relative max-w-lg w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-4 shadow-2xl">
