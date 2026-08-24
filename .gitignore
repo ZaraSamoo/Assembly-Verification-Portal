@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+
+# env
+.env
+.env.local
+.env*.local
+
+# temporary seed data and credentials
+*.xlsx
+*.csv
+
+# logs and OS junk
+*.log
+.DS_Store
+Thumbs.db
