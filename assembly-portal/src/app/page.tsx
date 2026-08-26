@@ -4,24 +4,24 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { format, parseISO, subDays } from 'date-fns';
 import {
   AlertCircle,
-  AlertTriangle,
+  BarChart3,
   Building2,
   Calendar,
   CheckCircle2,
   Download,
-  Flag,
+  FileText,
   ImageOff,
+  LayoutDashboard,
   Loader2,
   Search,
+  Settings,
   ShieldCheck,
   X,
-  ZoomIn,
-  ZoomOut,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
-type StatusTab = 'all' | 'submitted' | 'pending' | 'late';
-type DisplayStatus = 'submitted' | 'verified' | 'late' | 'missing' | 'flagged';
+type StatusTab = 'all' | 'submitted' | 'missing';
+type DisplayStatus = 'submitted' | 'verified' | 'pending' | 'missing';
 
 interface Institution {
   id: number | string;
@@ -38,7 +38,6 @@ interface Submission {
   image_url: string | null;
   remarks: string | null;
   status: string;
-  is_late: boolean;
   created_at: string;
 }
 
@@ -48,12 +47,61 @@ interface CollegeRow {
   displayStatus: DisplayStatus;
 }
 
-const CUTOFF = '10:30 AM';
-const CARD =
-  'bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-xl hover:border-slate-700/60 transition-all';
+const GLASS =
+  'bg-[#121829]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)]';
 
 function karachiISO(value?: Date) {
   return (value ?? new Date()).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+}
+
+function karachiClock(iso?: string | null) {
+  if (!iso) return '';
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleTimeString('en-US', {
+    timeZone: 'Asia/Karachi',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+function karachiNowParts(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Karachi',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(now);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value || '00';
+  return {
+    year: Number(get('year')),
+    month: Number(get('month')),
+    day: Number(get('day')),
+    hour: Number(get('hour')),
+    minute: Number(get('minute')),
+    second: Number(get('second')),
+  };
+}
+
+function msUntilCutoff(now = new Date()) {
+  const p = karachiNowParts(now);
+  const current = ((p.hour * 60 + p.minute) * 60 + p.second) * 1000;
+  const cutoff = 15 * 60 * 60 * 1000;
+  return cutoff - current;
+}
+
+function formatCountdown(ms: number) {
+  if (ms <= 0) return 'Window closed';
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 function asId(value: number | string) {
@@ -84,46 +132,32 @@ function normalizeSubmission(item: Record<string, unknown>): Submission {
     image_url: ((item.image_url as string | null) ?? (item.photo_url as string | null)) || null,
     remarks: ((item.remarks as string | null) ?? (item.notes as string | null)) || null,
     status: String(item.status || 'submitted'),
-    is_late: Boolean(item.is_late),
     created_at: createdAt,
   };
 }
 
-function isAfterCutoff(iso: string | null) {
-  if (!iso) return false;
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return false;
-  return parsed.getHours() > 10 || (parsed.getHours() === 10 && parsed.getMinutes() >= 30);
+function isWindowClosed(value = new Date()) {
+  const localTimeStr = value.toLocaleTimeString('en-GB', { timeZone: 'Asia/Karachi', hour12: false });
+  const [hour] = localTimeStr.split(':').map(Number);
+  return hour >= 15;
 }
 
-function resolveStatus(submission: Submission | null): DisplayStatus {
-  if (!submission) return 'missing';
-  if (submission.is_late || isAfterCutoff(submission.submission_time || submission.created_at)) return 'late';
-  const status = submission.status.toLowerCase();
-  if (status === 'verified') return 'verified';
-  if (status === 'flagged') return 'flagged';
-  return 'submitted';
+function absenceStatus(selectedDate: string, now = new Date()): 'pending' | 'missing' {
+  const today = karachiISO(now);
+  if (selectedDate < today) return 'missing';
+  if (selectedDate > today) return 'pending';
+  return isWindowClosed(now) ? 'missing' : 'pending';
 }
 
-function statusClass(status: DisplayStatus) {
-  if (status === 'late') return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
-  if (status === 'missing' || status === 'flagged') return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
-  return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+function resolveStatus(submission: Submission | null, absence: 'pending' | 'missing'): DisplayStatus {
+  if (!submission) return absence;
+  return submission.status.toLowerCase() === 'verified' ? 'verified' : 'submitted';
 }
 
-function statusLabel(status: DisplayStatus) {
-  if (status === 'verified') return 'Verified';
-  if (status === 'late') return 'Late';
-  if (status === 'missing') return 'Pending';
-  if (status === 'flagged') return 'Flagged';
-  return 'Submitted';
-}
-
-function formatClock(iso: string | null) {
-  if (!iso) return '';
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return '';
-  return format(parsed, 'hh:mm a');
+function statusCopy(status: DisplayStatus) {
+  if (status === 'pending') return 'Pending';
+  if (status === 'missing') return 'Not Submitted / Missing';
+  return 'Submitted / Verified';
 }
 
 function csvEscape(value: string) {
@@ -135,13 +169,11 @@ async function loadInstitutionsAndSubmissions(fromDate: string) {
   const supabase = createClient() as any;
   const instRes = await supabase.from('institutions').select('id, name, code, is_active').order('code');
   let subRes = await supabase.from('assembly_submissions').select('*').gte('submission_date', fromDate);
-
   if (subRes?.error) {
     subRes = await supabase.from('assembly_submissions').select('*');
   }
 
-  const directOk = !instRes?.error;
-  let institutions = directOk ? (instRes.data as Institution[]) || [] : [];
+  let institutions = !instRes?.error ? ((instRes.data as Institution[]) || []) : [];
   let submissions = !subRes?.error ? ((subRes.data || []) as Record<string, unknown>[]).map(normalizeSubmission) : [];
 
   if (!institutions.length || instRes?.error) {
@@ -159,18 +191,33 @@ async function loadInstitutionsAndSubmissions(fromDate: string) {
   return { institutions, submissions };
 }
 
+function areaPath(values: number[], width: number, height: number) {
+  const max = Math.max(1, ...values);
+  const step = values.length > 1 ? width / (values.length - 1) : width;
+  const points = values.map((value, index) => {
+    const x = index * step;
+    const y = height - (value / max) * (height - 16) - 8;
+    return { x, y };
+  });
+  if (!points.length) return { line: '', area: '', points };
+  const line = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+  const area = `${line} L ${points[points.length - 1].x} ${height} L 0 ${height} Z`;
+  return { line, area, points };
+}
+
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState(karachiISO);
   const [statusTab, setStatusTab] = useState<StatusTab>('all');
   const [search, setSearch] = useState('');
+  const [headerSearch, setHeaderSearch] = useState('');
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [live, setLive] = useState(false);
   const [lightboxRow, setLightboxRow] = useState<CollegeRow | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [actionBusy, setActionBusy] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+  const [hoverDay, setHoverDay] = useState<number | null>(null);
 
   const fromDate = useMemo(() => {
     try {
@@ -206,8 +253,12 @@ export default function Home() {
   }, [loadData]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => void loadData(true), 12000);
-    return () => window.clearInterval(timer);
+    const poll = window.setInterval(() => void loadData(true), 12000);
+    const tick = window.setInterval(() => setNow(new Date()), 1000);
+    return () => {
+      window.clearInterval(poll);
+      window.clearInterval(tick);
+    };
   }, [loadData]);
 
   useEffect(() => {
@@ -234,60 +285,64 @@ export default function Home() {
       const prevTs = existing ? new Date(existing.submission_time || existing.created_at).getTime() : 0;
       if (!existing || nextTs > prevTs) latest.set(key, submission);
     }
-
     return registered.map((institution) => {
       const submission = latest.get(asId(institution.id)) ?? null;
-      return { institution, submission, displayStatus: resolveStatus(submission) };
+      return {
+        institution,
+        submission,
+        displayStatus: resolveStatus(submission, absenceStatus(selectedDate, now)),
+      };
     });
-  }, [registered, submissions, selectedDate]);
+  }, [registered, submissions, selectedDate, now]);
 
   const metrics = useMemo(() => {
     const total = rows.length;
-    const submitted = rows.filter((row) => row.displayStatus !== 'missing').length;
-    const pending = total - submitted;
-    const late = rows.filter((row) => row.displayStatus === 'late').length;
-    const onTime = submitted - late;
+    const submitted = rows.filter((row) => row.displayStatus === 'submitted' || row.displayStatus === 'verified').length;
+    const outstanding = total - submitted;
     const compliance = total === 0 ? 0 : (submitted / total) * 100;
-    return { total, submitted, pending, late, onTime, compliance };
-  }, [rows]);
+    const absence = absenceStatus(selectedDate, now);
+    return { total, submitted, outstanding, compliance, absence };
+  }, [rows, selectedDate, now]);
+
+  const query = (search || headerSearch).trim().toLowerCase();
 
   const filteredRows = useMemo(() => {
-    const query = search.trim().toLowerCase();
     return rows.filter((row) => {
-      if (statusTab === 'submitted' && row.displayStatus === 'missing') return false;
-      if (statusTab === 'pending' && row.displayStatus !== 'missing') return false;
-      if (statusTab === 'late' && row.displayStatus !== 'late') return false;
+      if (statusTab === 'submitted' && row.displayStatus !== 'submitted' && row.displayStatus !== 'verified') return false;
+      if (statusTab === 'missing' && row.displayStatus !== 'pending' && row.displayStatus !== 'missing') return false;
       if (!query) return true;
       return row.institution.name.toLowerCase().includes(query) || row.institution.code.toLowerCase().includes(query);
     });
-  }, [rows, search, statusTab]);
+  }, [rows, search, headerSearch, statusTab, query]);
 
   const trend = useMemo(() => {
     const days = Array.from({ length: 7 }, (_, index) => {
       const date = format(subDays(parseISO(selectedDate), 6 - index), 'yyyy-MM-dd');
-      const dayRows = new Map<string, Submission>();
+      const unique = new Set<string>();
       for (const submission of submissions) {
-        if (submissionDay(submission) !== date) continue;
-        dayRows.set(asId(submission.institution_id), submission);
+        if (submissionDay(submission) === date) unique.add(asId(submission.institution_id));
       }
-      const submitted = dayRows.size;
-      const late = [...dayRows.values()].filter((item) => resolveStatus(item) === 'late').length;
-      const onTimePct = submitted === 0 ? 0 : ((submitted - late) / submitted) * 100;
-      return { date, submitted, late, onTimePct, label: format(parseISO(date), 'EEE d') };
+      return {
+        date,
+        submitted: unique.size,
+        label: format(parseISO(date), 'EEE'),
+        pct: registered.length === 0 ? 0 : (unique.size / registered.length) * 100,
+      };
     });
-    const max = Math.max(1, ...days.map((day) => day.submitted));
-    return { days, max };
-  }, [submissions, selectedDate]);
+    return days;
+  }, [submissions, selectedDate, registered.length]);
+
+  const chart = areaPath(trend.map((day) => day.submitted), 320, 128);
 
   const exportCsv = () => {
-    const headers = ['College Code', 'Name', 'Submission Date', 'Submission Time', 'Timing Status', 'Verification Link'];
+    const headers = ['College Code', 'Name', 'Submission Date', 'Submission Time PKT', 'Status', 'Photo URL'];
     const body = filteredRows.map((row) =>
       [
         row.institution.code,
         row.institution.name,
         row.submission?.submission_date || selectedDate,
-        formatClock(row.submission?.submission_time || row.submission?.created_at || null),
-        row.displayStatus === 'missing' ? 'Missing' : row.displayStatus === 'late' ? 'Late' : 'On-Time',
+        karachiClock(row.submission?.submission_time || row.submission?.created_at),
+        row.displayStatus === 'pending' || row.displayStatus === 'missing' ? statusCopy(row.displayStatus) : 'Submitted / Verified',
         row.submission?.image_url || '',
       ]
         .map((value) => csvEscape(String(value)))
@@ -297,441 +352,344 @@ export default function Home() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `assembly-audit-${selectedDate}.csv`;
+    link.download = `assembly-report-${selectedDate}.csv`;
     link.click();
     window.URL.revokeObjectURL(url);
   };
 
-  const updateStatus = async (id: number | string, status: 'verified' | 'flagged') => {
-    setActionBusy(true);
-    try {
-      const response = await fetch('/api/monitoring', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        setErrorMessage(payload.error || 'Failed to update status.');
-        return;
-      }
-      setSubmissions((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)));
-      setLightboxRow((current) =>
-        current?.submission?.id === id
-          ? {
-              ...current,
-              submission: { ...current.submission, status },
-              displayStatus: resolveStatus({ ...current.submission, status }),
-            }
-          : current
-      );
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const yesterday = format(subDays(parseISO(karachiISO()), 1), 'yyyy-MM-dd');
-  const onTimePct = metrics.total === 0 ? 0 : (metrics.onTime / metrics.total) * 100;
-  const latePct = metrics.total === 0 ? 0 : (metrics.late / metrics.total) * 100;
-  const missingPct = metrics.total === 0 ? 0 : (metrics.pending / metrics.total) * 100;
+  const cutoffMs = msUntilCutoff(now);
+  const pktNow = now.toLocaleTimeString('en-US', {
+    timeZone: 'Asia/Karachi',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+  const circumference = 2 * Math.PI * 42;
+  const dash = (metrics.compliance / 100) * circumference;
+  const nav = [
+    { label: 'Dashboard', icon: LayoutDashboard, active: true },
+    { label: 'Institutions', icon: Building2, active: false },
+    { label: 'Reports', icon: FileText, active: false },
+    { label: 'Analytics', icon: BarChart3, active: false },
+    { label: 'Settings', icon: Settings, active: false },
+  ];
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#070A12] text-slate-100">
+    <main className="relative min-h-screen overflow-hidden bg-[#0B101E] text-slate-100">
       <div
         className="pointer-events-none absolute inset-0"
         style={{
-          backgroundImage: 'radial-gradient(circle at 50% 0%, rgba(99,102,241,0.12) 0%, transparent 60%)',
+          backgroundImage:
+            'radial-gradient(circle at 75% 15%, rgba(59, 130, 246, 0.18) 0%, transparent 50%), radial-gradient(circle at 10% 80%, rgba(99, 102, 241, 0.15) 0%, transparent 50%)',
         }}
       />
 
-      <div className="relative z-10 mx-auto max-w-7xl space-y-8 p-4 md:p-8">
-        <header className={CARD}>
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-slate-800/80 bg-slate-950/50 text-indigo-400">
-                <ShieldCheck className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                  Government of Sindh • College Education Department
-                </p>
-                <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-50 md:text-[1.85rem]">
-                  Assembly Compliance &amp; Verification Directorate
-                </h1>
-              </div>
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1440px] gap-5 p-4 md:p-6">
+        <aside className={`${GLASS} hidden w-[248px] shrink-0 flex-col p-4 lg:flex`}>
+          <div className="mb-8 flex items-center gap-3 px-2">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.45)]">
+              <ShieldCheck className="h-5 w-5" />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-slate-800/80 bg-slate-950/40 px-3 py-1 text-xs text-slate-300">
-                {format(parseISO(selectedDate), 'EEE, d MMM yyyy')}
-              </span>
-              <span className="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-3 py-1 text-xs font-medium text-indigo-400">
-                Session 2026–27
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
-                <span className="relative flex h-2 w-2">
-                  <span className={`absolute inset-0 rounded-full bg-emerald-400 ${live ? 'animate-ping opacity-70' : 'opacity-0'}`} />
-                  <span className={`relative h-2 w-2 rounded-full ${live ? 'bg-emerald-400' : 'bg-slate-500'}`} />
-                </span>
-                {live ? 'Live Feed Active' : 'Feed Offline'}
-              </span>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-300">Sindh ED</p>
+              <p className="text-sm font-semibold leading-tight text-slate-100">Assembly Verification</p>
             </div>
           </div>
-        </header>
-
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <article className={CARD}>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
-              <Building2 className="h-5 w-5" />
-            </div>
-            <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Total Registered Colleges</p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-50">{metrics.total}</p>
-          </article>
-          <article className={CARD}>
-            <div className="flex items-start justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
-                <CheckCircle2 className="h-5 w-5" />
+          <nav className="space-y-1.5">
+            {nav.map((item) => (
+              <div
+                key={item.label}
+                className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium ${
+                  item.active
+                    ? 'border border-blue-500/30 bg-blue-600/30 text-blue-400 shadow-[0_0_20px_rgba(37,99,235,0.18)]'
+                    : 'text-slate-400'
+                }`}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
               </div>
-              <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
-                {metrics.compliance.toFixed(1)}%
-              </span>
-            </div>
-            <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Verified Today</p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-400">{metrics.submitted}</p>
-          </article>
-          <article className={CARD}>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
-              <AlertCircle className="h-5 w-5" />
-            </div>
-            <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Pending Submissions</p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight text-amber-400">{metrics.pending}</p>
-            <p className="mt-1 text-xs text-slate-500">Count remaining</p>
-          </article>
-          <article className={CARD}>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-400">
-              <AlertTriangle className="h-5 w-5" />
-            </div>
-            <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Late Submissions</p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight text-rose-400">{metrics.late}</p>
-            <p className="mt-1 text-xs text-slate-500">After {CUTOFF}</p>
-          </article>
-        </section>
+            ))}
+          </nav>
+        </aside>
 
-        <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <article className={`${CARD} lg:col-span-1`}>
-            <h2 className="text-sm font-semibold text-slate-100">Compliance breakdown</h2>
-            <p className="mt-1 text-xs text-slate-500">On-time vs late vs missing for {format(parseISO(selectedDate), 'd MMM')}</p>
-            <div className="mt-6 flex items-center justify-center">
-              <svg viewBox="0 0 160 160" className="h-44 w-44">
-                <circle cx="80" cy="80" r="58" fill="none" stroke="#0f172a" strokeWidth="14" />
-                <circle
-                  cx="80"
-                  cy="80"
-                  r="58"
-                  fill="none"
-                  stroke="#34d399"
-                  strokeWidth="14"
-                  strokeDasharray={`${onTimePct * 3.64} 364`}
-                  strokeLinecap="round"
-                  transform="rotate(-90 80 80)"
-                />
-                <circle
-                  cx="80"
-                  cy="80"
-                  r="58"
-                  fill="none"
-                  stroke="#f59e0b"
-                  strokeWidth="14"
-                  strokeDasharray={`${latePct * 3.64} 364`}
-                  strokeDashoffset={`${-onTimePct * 3.64}`}
-                  transform="rotate(-90 80 80)"
-                />
-                <circle
-                  cx="80"
-                  cy="80"
-                  r="58"
-                  fill="none"
-                  stroke="#fb7185"
-                  strokeWidth="14"
-                  strokeDasharray={`${missingPct * 3.64} 364`}
-                  strokeDashoffset={`${-(onTimePct + latePct) * 3.64}`}
-                  transform="rotate(-90 80 80)"
-                />
-                <text x="80" y="76" textAnchor="middle" fill="#f8fafc" fontSize="22" fontWeight="600">
-                  {metrics.compliance.toFixed(0)}%
-                </text>
-                <text x="80" y="94" textAnchor="middle" fill="#94a3b8" fontSize="10">
-                  compliance
-                </text>
-              </svg>
-            </div>
-            <div className="mt-2 space-y-2 text-xs">
-              <LegendRow color="bg-emerald-400" label="On-time" value={`${metrics.onTime} · ${onTimePct.toFixed(1)}%`} />
-              <LegendRow color="bg-amber-400" label="Late" value={`${metrics.late} · ${latePct.toFixed(1)}%`} />
-              <LegendRow color="bg-rose-400" label="Missing" value={`${metrics.pending} · ${missingPct.toFixed(1)}%`} />
-            </div>
-          </article>
-
-          <article className={`${CARD} lg:col-span-2`}>
-            <h2 className="text-sm font-semibold text-slate-100">7-day submission velocity</h2>
-            <p className="mt-1 text-xs text-slate-500">Daily volume and on-time share</p>
-            <div className="mt-6 h-52">
-              <svg viewBox="0 0 640 208" className="h-full w-full" preserveAspectRatio="none">
-                {trend.days.map((day, index) => {
-                  const slot = 640 / 7;
-                  const x = index * slot + 18;
-                  const barWidth = slot - 36;
-                  const height = (day.submitted / trend.max) * 140;
-                  const y = 168 - height;
-                  return (
-                    <g key={day.date}>
-                      <rect x={x} y={y} width={barWidth} height={Math.max(height, 3)} rx="8" fill="#4f46e5" opacity="0.9" />
-                      <text x={x + barWidth / 2} y={y - 8} textAnchor="middle" fill="#cbd5e1" fontSize="11">
-                        {day.submitted}
-                      </text>
-                      <text x={x + barWidth / 2} y="186" textAnchor="middle" fill="#64748b" fontSize="11">
-                        {day.label}
-                      </text>
-                      <text x={x + barWidth / 2} y="202" textAnchor="middle" fill="#818cf8" fontSize="10">
-                        {day.onTimePct.toFixed(0)}% OT
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
-            </div>
-          </article>
-        </section>
-
-        <section className={`${CARD} space-y-4`}>
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+        <div className="min-w-0 flex-1 space-y-5">
+          <header className={`${GLASS} flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between`}>
+            <p className="text-xs text-slate-400">
+              Home <span className="text-slate-600">/</span> Dashboard <span className="text-slate-600">/</span>{' '}
+              <span className="text-blue-400">Today (PKT)</span>
+            </p>
             <div className="flex flex-wrap items-center gap-2">
-              <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-800/80 bg-slate-950/40 px-3">
-                <Calendar className="h-4 w-4 text-indigo-400" />
+              <label className="relative min-w-[180px] flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <input
+                  value={headerSearch}
+                  onChange={(event) => setHeaderSearch(event.target.value)}
+                  placeholder="Quick search"
+                  className="h-10 w-full rounded-full border border-white/[0.08] bg-white/[0.03] py-2 pl-9 pr-3 text-sm outline-none placeholder:text-slate-500"
+                />
+              </label>
+              <label className="flex h-10 items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3">
+                <Calendar className="h-4 w-4 text-blue-400" />
                 <input
                   type="date"
                   value={selectedDate}
                   onChange={(event) => setSelectedDate(event.target.value)}
-                  className="bg-transparent text-sm text-slate-200 outline-none"
-                  aria-label="Filter by date"
+                  className="bg-transparent text-sm outline-none"
                 />
               </label>
+              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-400">
+                <span className="relative flex h-2 w-2">
+                  <span className={`absolute inset-0 rounded-full bg-emerald-400 ${live ? 'animate-ping opacity-70' : 'opacity-0'}`} />
+                  <span className={`relative h-2 w-2 rounded-full ${live ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+                </span>
+                Feed Active
+              </span>
               <button
                 type="button"
-                onClick={() => setSelectedDate(karachiISO())}
-                className={`h-11 rounded-xl px-3 text-xs font-semibold transition ${
-                  selectedDate === karachiISO()
-                    ? 'bg-indigo-600 text-white'
-                    : 'border border-slate-800/80 bg-slate-950/40 text-slate-300 hover:border-slate-700/60'
-                }`}
+                onClick={exportCsv}
+                className="inline-flex h-10 items-center gap-2 rounded-full bg-blue-600 px-4 text-sm font-semibold text-white shadow-[0_0_20px_rgba(37,99,235,0.45)] transition hover:bg-blue-500"
               >
-                Today
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedDate(yesterday)}
-                className={`h-11 rounded-xl px-3 text-xs font-semibold transition ${
-                  selectedDate === yesterday
-                    ? 'bg-indigo-600 text-white'
-                    : 'border border-slate-800/80 bg-slate-950/40 text-slate-300 hover:border-slate-700/60'
-                }`}
-              >
-                Yesterday
+                <Download className="h-4 w-4" />
+                Export Report
               </button>
             </div>
+          </header>
 
-            <label className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search college name or code (KQ…)"
-                className="h-11 w-full rounded-xl border border-slate-800/80 bg-slate-950/40 py-2 pl-10 pr-3 text-sm outline-none placeholder:text-slate-500 focus:border-indigo-500/40"
-              />
-            </label>
+          <section className="px-1">
+            <h1 className="text-3xl font-semibold tracking-tight text-transparent md:text-4xl" style={{ backgroundImage: 'linear-gradient(180deg,#f8fbff 20%,#93c5fd 100%)', WebkitBackgroundClip: 'text' }}>
+              Daily Assembly Verification
+            </h1>
+            <p className="mt-2 text-sm text-slate-400">Real-time compliance monitoring for Government Colleges across Sindh.</p>
+          </section>
 
-            <div className="flex h-11 items-center gap-1 overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-950/40 p-1">
-              {(
-                [
-                  ['all', `All (${metrics.total})`],
-                  ['submitted', `Submitted (${metrics.submitted})`],
-                  ['pending', `Pending (${metrics.pending})`],
-                  ['late', `Late (${metrics.late})`],
-                ] as [StatusTab, string][]
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setStatusTab(id)}
-                  className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    statusTab === id ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(280px,0.9fr)]">
+            <section className={`${GLASS} p-4 md:p-5`}>
+              <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ['all', `All Colleges (${metrics.total})`],
+                      ['submitted', `Submitted Today (${metrics.submitted})`],
+                      ['pending', `Not Submitted (${metrics.pending})`],
+                    ] as [StatusTab, string][]
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setStatusTab(id)}
+                      className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                        statusTab === id
+                          ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.45)]'
+                          : 'border border-white/[0.08] bg-white/[0.03] text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <label className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search college name or code (KQ…)"
+                    className="h-10 w-full rounded-full border border-white/[0.08] bg-white/[0.03] py-2 pl-9 pr-3 text-sm outline-none placeholder:text-slate-500"
+                  />
+                </label>
+              </div>
 
-            <button
-              type="button"
-              onClick={exportCsv}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-500"
-            >
-              <Download className="h-4 w-4" />
-              Export Audit CSV
-            </button>
-          </div>
+              {errorMessage && (
+                <div className="mb-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{errorMessage}</div>
+              )}
 
-          {errorMessage && (
-            <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-400">{errorMessage}</div>
-          )}
-
-          {loading ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-16">
-              <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
-              <p className="text-sm text-slate-500">Loading live compliance register…</p>
-            </div>
-          ) : filteredRows.length === 0 ? (
-            <div className="py-16 text-center text-sm text-slate-500">No colleges match the current filters.</div>
-          ) : (
-            <div className="overflow-x-auto rounded-xl bg-slate-950/30">
-              <table className="w-full min-w-[860px] text-left">
-                <thead>
-                  <tr className="bg-slate-950/60 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    <th className="px-4 py-3">College Code</th>
-                    <th className="px-4 py-3">Institution Name</th>
-                    <th className="px-4 py-3">Submission Time</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Photo</th>
-                  </tr>
-                </thead>
-                <tbody>
+              {loading ? (
+                <div className="flex flex-col items-center justify-center gap-3 py-20">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+                  <p className="text-sm text-slate-500">Syncing live submissions…</p>
+                </div>
+              ) : filteredRows.length === 0 ? (
+                <div className="py-20 text-center text-sm text-slate-500">No colleges match the current filters.</div>
+              ) : (
+                <div className="max-h-[68vh] space-y-2.5 overflow-y-auto pr-1">
                   {filteredRows.map((row) => {
-                    const clock = formatClock(row.submission?.submission_time || row.submission?.created_at || null);
+                    const pending = row.displayStatus === 'pending';
                     return (
-                      <tr key={asId(row.institution.id)} className="border-b border-slate-800/50 transition-colors hover:bg-slate-800/40">
-                        <td className="px-4 py-4">
-                          <span className="rounded-md border border-slate-800/80 bg-slate-950/60 px-2 py-0.5 font-mono text-[11px] font-semibold text-indigo-400">
-                            {row.institution.code}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 font-medium text-slate-100">{row.institution.name}</td>
-                        <td className="px-4 py-4">
-                          {clock ? (
-                            <div>
-                              <p className="text-sm text-slate-200">{clock}</p>
-                              <p className={`text-[11px] font-medium ${row.displayStatus === 'late' ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                {row.displayStatus === 'late' ? `Late · after ${CUTOFF}` : 'On time'}
-                              </p>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-slate-500">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-4">
-                          <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(row.displayStatus)}`}>
-                            {statusLabel(row.displayStatus)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4">
-                          {row.submission?.image_url ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setZoom(1);
-                                setLightboxRow(row);
-                              }}
-                              className="group h-12 w-16 overflow-hidden rounded-xl border border-slate-800/80"
-                              aria-label={`Inspect ${row.institution.name}`}
-                            >
-                              <img src={row.submission.image_url} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110" />
-                            </button>
-                          ) : (
-                            <div className="flex h-12 w-16 items-center justify-center rounded-xl border border-slate-800/80 text-slate-600">
-                              <ImageOff className="h-4 w-4" />
-                            </div>
-                          )}
-                        </td>
-                      </tr>
+                      <article
+                        key={asId(row.institution.id)}
+                        className="flex items-center gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.03] px-3.5 py-3 transition hover:border-blue-500/20 hover:bg-white/[0.05]"
+                      >
+                        <span className="shrink-0 rounded-full border border-blue-500/30 bg-blue-600/20 px-2.5 py-1 font-mono text-[11px] font-semibold text-blue-300 shadow-[0_0_16px_rgba(37,99,235,0.25)]">
+                          {row.institution.code}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-slate-100">{row.institution.name}</p>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {row.submission
+                              ? karachiClock(row.submission.submission_time || row.submission.created_at)
+                              : 'Awaiting capture'}
+                          </p>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                            pending
+                              ? 'border border-amber-400/20 bg-amber-500/10 text-amber-300'
+                              : 'border border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_14px_rgba(16,185,129,0.2)]'
+                          }`}
+                        >
+                          {pending ? 'Pending / Missing' : row.displayStatus === 'verified' ? 'Verified' : 'Submitted'}
+                        </span>
+                        {row.submission?.image_url ? (
+                          <button
+                            type="button"
+                            onClick={() => setLightboxRow(row)}
+                            className="h-12 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/[0.08]"
+                            aria-label={`Inspect ${row.institution.name}`}
+                          >
+                            <img src={row.submission.image_url} alt="" className="h-full w-full object-cover transition duration-300 hover:scale-110" />
+                          </button>
+                        ) : (
+                          <div className="flex h-12 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/[0.08] text-slate-600">
+                            <ImageOff className="h-4 w-4" />
+                          </div>
+                        )}
+                      </article>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+                </div>
+              )}
+            </section>
+
+            <aside className="space-y-5">
+              <article className={`${GLASS} p-5`}>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-300">Today’s Executive Summary</p>
+                <div className="mt-5 flex items-center gap-5">
+                  <svg viewBox="0 0 108 108" className="h-28 w-28 shrink-0">
+                    <circle cx="54" cy="54" r="42" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10" />
+                    <circle
+                      cx="54"
+                      cy="54"
+                      r="42"
+                      fill="none"
+                      stroke="url(#gauge)"
+                      strokeWidth="10"
+                      strokeLinecap="round"
+                      strokeDasharray={`${dash} ${circumference}`}
+                      transform="rotate(-90 54 54)"
+                    />
+                    <defs>
+                      <linearGradient id="gauge" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="#60a5fa" />
+                        <stop offset="100%" stopColor="#818cf8" />
+                      </linearGradient>
+                    </defs>
+                    <text x="54" y="52" textAnchor="middle" fill="#f8fafc" fontSize="18" fontWeight="700">
+                      {metrics.compliance.toFixed(0)}%
+                    </text>
+                    <text x="54" y="68" textAnchor="middle" fill="#93c5fd" fontSize="8">
+                      compliance
+                    </text>
+                  </svg>
+                  <div className="space-y-2 text-sm">
+                    <p className="text-slate-400">
+                      Active colleges <span className="float-right font-semibold text-slate-100">{metrics.total}</span>
+                    </p>
+                    <p className="text-slate-400">
+                      Submitted <span className="float-right font-semibold text-emerald-300">{metrics.submitted}</span>
+                    </p>
+                    <p className="text-slate-400">
+                      Missing <span className="float-right font-semibold text-amber-300">{metrics.pending}</span>
+                    </p>
+                  </div>
+                </div>
+              </article>
+
+              <article className={`${GLASS} p-5`}>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-300">7-Day Compliance Velocity</p>
+                <div className="relative mt-4">
+                  <svg viewBox="0 0 320 128" className="h-36 w-full overflow-visible">
+                    <defs>
+                      <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.45" />
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <path d={chart.area} fill="url(#areaFill)" />
+                    <path d={chart.line} fill="none" stroke="#60a5fa" strokeWidth="2.5" />
+                    {chart.points.map((point, index) => (
+                      <circle
+                        key={trend[index]?.date}
+                        cx={point.x}
+                        cy={point.y}
+                        r={hoverDay === index ? 5 : 3.5}
+                        fill="#93c5fd"
+                        className="cursor-pointer"
+                        onMouseEnter={() => setHoverDay(index)}
+                        onMouseLeave={() => setHoverDay(null)}
+                      />
+                    ))}
+                  </svg>
+                  {hoverDay !== null && trend[hoverDay] && (
+                    <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded-xl border border-white/[0.08] bg-[#121829]/90 px-3 py-1.5 text-xs text-slate-200">
+                      {trend[hoverDay].label}: {trend[hoverDay].submitted} submitted · {trend[hoverDay].pct.toFixed(0)}%
+                    </div>
+                  )}
+                  <div className="mt-2 flex justify-between text-[10px] uppercase tracking-wider text-slate-500">
+                    {trend.map((day) => (
+                      <span key={day.date}>{day.label}</span>
+                    ))}
+                  </div>
+                </div>
+              </article>
+
+              <article className={`${GLASS} p-5`}>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-300">Cutoff Timer</p>
+                <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-50">{formatCountdown(cutoffMs)}</p>
+                <p className="mt-1 text-sm text-slate-400">Until 3:00 PM PKT · now {pktNow}</p>
+                <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                  Submissions are accepted until 3:00 PM Pakistan Standard Time. Captures after the window remain visible without late tags.
+                </p>
+                <button
+                  type="button"
+                  onClick={exportCsv}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-2.5 text-sm font-semibold text-white shadow-[0_0_20px_rgba(37,99,235,0.45)] hover:bg-blue-500"
+                >
+                  <Download className="h-4 w-4" />
+                  Instant report download
+                </button>
+              </article>
+            </aside>
+          </div>
+        </div>
       </div>
 
       {lightboxRow?.submission?.image_url && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-2xl">
-          <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/80 shadow-2xl backdrop-blur-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B101E]/80 p-4 backdrop-blur-2xl" onClick={() => setLightboxRow(null)}>
+          <div className={`${GLASS} max-h-[92vh] w-full max-w-4xl overflow-hidden`} onClick={(event) => event.stopPropagation()}>
             <div className="flex items-start justify-between gap-4 p-5">
               <div>
-                <span className="rounded-md border border-slate-800/80 bg-slate-950/60 px-2 py-0.5 font-mono text-[11px] font-semibold text-indigo-400">
+                <span className="rounded-full border border-blue-500/30 bg-blue-600/20 px-2.5 py-1 font-mono text-[11px] font-semibold text-blue-300">
                   {lightboxRow.institution.code}
                 </span>
                 <h3 className="mt-2 text-lg font-semibold text-slate-50">{lightboxRow.institution.name}</h3>
                 <p className="mt-1 text-xs text-slate-400">
-                  {formatClock(lightboxRow.submission.submission_time || lightboxRow.submission.created_at)} · {statusLabel(lightboxRow.displayStatus)}
+                  {karachiClock(lightboxRow.submission.submission_time || lightboxRow.submission.created_at)} PKT
                 </p>
               </div>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setZoom((value) => Math.max(1, value - 0.25))} className="rounded-xl border border-slate-800/80 p-2 text-slate-300 hover:border-slate-700/60" aria-label="Zoom out">
-                  <ZoomOut className="h-4 w-4" />
-                </button>
-                <button type="button" onClick={() => setZoom((value) => Math.min(3, value + 0.25))} className="rounded-xl border border-slate-800/80 p-2 text-slate-300 hover:border-slate-700/60" aria-label="Zoom in">
-                  <ZoomIn className="h-4 w-4" />
-                </button>
-                <button type="button" onClick={() => setLightboxRow(null)} className="rounded-xl border border-slate-800/80 p-2 text-slate-300 hover:border-slate-700/60" aria-label="Close">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
+              <button type="button" onClick={() => setLightboxRow(null)} className="rounded-full border border-white/[0.08] p-2 text-slate-300" aria-label="Close">
+                <X className="h-4 w-4" />
+              </button>
             </div>
-            <div className="flex-1 overflow-auto bg-slate-950/40 p-5">
+            <div className="px-5 pb-5">
               <img
                 src={lightboxRow.submission.image_url}
                 alt={`Assembly photo for ${lightboxRow.institution.name}`}
-                className="mx-auto max-h-[56vh] origin-center rounded-2xl object-contain transition-transform"
-                style={{ transform: `scale(${zoom})` }}
+                className="max-h-[70vh] w-full rounded-2xl object-contain"
               />
-            </div>
-            <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-slate-500">Review the capture, then approve or flag for follow-up.</p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={actionBusy}
-                  onClick={() => void updateStatus(lightboxRow.submission!.id, 'verified')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-400"
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  disabled={actionBusy}
-                  onClick={() => void updateStatus(lightboxRow.submission!.id, 'flagged')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-400"
-                >
-                  <Flag className="h-4 w-4" />
-                  Flag
-                </button>
-              </div>
             </div>
           </div>
         </div>
       )}
     </main>
-  );
-}
-
-function LegendRow({ color, label, value }: { color: string; label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between rounded-xl bg-slate-950/40 px-3 py-2">
-      <span className="inline-flex items-center gap-2 text-slate-300">
-        <span className={`h-2 w-2 rounded-full ${color}`} />
-        {label}
-      </span>
-      <span className="font-medium text-slate-200">{value}</span>
-    </div>
   );
 }

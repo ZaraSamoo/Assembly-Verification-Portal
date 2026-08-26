@@ -33,6 +33,25 @@ interface CompressedImage {
   sizeKB: number;
 }
 
+function pktDate(value = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(value);
+}
+
+function isWindowClosed(value = new Date()) {
+  const localTimeStr = value.toLocaleTimeString('en-GB', { timeZone: 'Asia/Karachi', hour12: false });
+  const [hour] = localTimeStr.split(':').map(Number);
+  return hour >= 15;
+}
+
+function formatPktTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('en-US', {
+    timeZone: 'Asia/Karachi',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
 // Client-side HTML5 Canvas Image Compression (<250 KB)
 function compressImageCanvas(file: File, maxDimension = 1280, quality = 0.72): Promise<CompressedImage> {
   return new Promise((resolve, reject) => {
@@ -104,8 +123,14 @@ export default function MagicLinkAccessPage() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submissionTimeFormatted, setSubmissionTimeFormatted] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [windowClosed, setWindowClosed] = useState(() => isWindowClosed());
 
   const cameraTriggeredRef = useRef(false);
+
+  useEffect(() => {
+    const tick = window.setInterval(() => setWindowClosed(isWindowClosed()), 1000);
+    return () => window.clearInterval(tick);
+  }, []);
 
   const loadInstitution = useCallback(async () => {
     if (!code) {
@@ -145,22 +170,19 @@ export default function MagicLinkAccessPage() {
 
       setInstitution(data as Institution);
 
-      // Check if submission already exists today
-      const todayDate = new Date().toISOString().split('T')[0];
+      const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date());
       const querySub: any = supabase.from('assembly_submissions');
       const { data: existingSub } = await querySub
         .select('id, submission_time, created_at')
         .eq('institution_id', data.id)
-        .eq('submission_date', todayDate)
+        .eq('submission_date', localDate)
         .maybeSingle();
 
       if (existingSub) {
         setAlreadySubmittedToday(true);
         const subTime = existingSub.submission_time || existingSub.created_at;
         if (subTime) {
-          setSubmissionTimeFormatted(
-            new Date(subTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
-          );
+          setSubmissionTimeFormatted(formatPktTime(subTime));
         }
       }
     } catch (err) {
@@ -177,14 +199,14 @@ export default function MagicLinkAccessPage() {
 
   // Auto-trigger native camera on initial mount after institution resolved
   useEffect(() => {
-    if (institution && !alreadySubmittedToday && !isSubmitted && !compressedImage && !cameraTriggeredRef.current) {
+    if (institution && !alreadySubmittedToday && !isSubmitted && !compressedImage && !windowClosed && !cameraTriggeredRef.current) {
       cameraTriggeredRef.current = true;
       const timer = setTimeout(() => {
         fileInputRef.current?.click();
       }, 350);
       return () => clearTimeout(timer);
     }
-  }, [institution, alreadySubmittedToday, isSubmitted, compressedImage]);
+  }, [institution, alreadySubmittedToday, isSubmitted, compressedImage, windowClosed]);
 
   const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -220,16 +242,22 @@ export default function MagicLinkAccessPage() {
   const handleSubmitPhoto = async () => {
     if (!compressedImage || !institution) return;
 
+    const localTimeStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Karachi', hour12: false });
+    const [hour] = localTimeStr.split(':').map(Number);
+    if (hour >= 15) {
+      setWindowClosed(true);
+      setErrorMessage('Daily Submission Window Closed (Closes at 3:00 PM PKT)');
+      return;
+    }
+
     setUploading(true);
     setErrorMessage(null);
 
     try {
       const supabase = createClient();
-      const todayDate = new Date().toISOString().split('T')[0];
-      const now = new Date();
-      const fileName = `${institution.code}_${todayDate}_${Date.now()}.jpg`;
+      const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date());
+      const fileName = `${institution.code}_${localDate}_${Date.now()}.jpg`;
 
-      // 1. Upload to Supabase Storage bucket 'assembly-photos'
       const { error: storageError }: any = await supabase.storage
         .from('assembly-photos')
         .upload(fileName, compressedImage.file, {
@@ -241,26 +269,19 @@ export default function MagicLinkAccessPage() {
         throw new Error(`Storage upload failed: ${storageError.message}`);
       }
 
-      // 2. Fetch public URL
       const { data: urlData } = supabase.storage
         .from('assembly-photos')
         .getPublicUrl(fileName);
 
       const publicUrl = urlData.publicUrl;
+      const submittedAt = new Date().toISOString();
 
-      // 3. Cut-off time check (10:30 AM)
-      const cutoff = new Date();
-      cutoff.setHours(10, 30, 0, 0);
-      const is_late = now > cutoff;
-
-      // 4. Insert into assembly_submissions table matching exact schema
       const queryInsert: any = supabase.from('assembly_submissions');
       const { error: insertError } = await queryInsert.insert({
         institution_id: institution.id,
-        submission_date: todayDate,
-        submission_time: now.toISOString(),
+        submission_date: localDate,
+        submission_time: submittedAt,
         image_url: publicUrl,
-        is_late,
         status: 'submitted',
         remarks: 'Submitted via Principal Magic Link',
       });
@@ -269,8 +290,7 @@ export default function MagicLinkAccessPage() {
         throw new Error(`Database insert failed: ${insertError.message}`);
       }
 
-      const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-      setSubmissionTimeFormatted(formattedTime);
+      setSubmissionTimeFormatted(formatPktTime(submittedAt));
       setCompressedImage(null);
       setIsSubmitted(true);
     } catch (err: any) {
@@ -370,6 +390,31 @@ export default function MagicLinkAccessPage() {
           <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-[11px] text-slate-300 flex items-center justify-center gap-2 backdrop-blur-md">
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>Government of Sindh • College Education Department</span>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (windowClosed) {
+    return (
+      <main className="bg-[#050811] min-h-screen text-slate-100 p-4 md:p-6 max-w-md mx-auto flex items-center justify-center font-sans relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,_rgba(245,158,11,0.14)_0%,_transparent_75%)]" />
+        <div className="w-full p-7 rounded-3xl bg-slate-900/40 backdrop-blur-2xl border border-amber-500/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] text-center space-y-6 relative z-10">
+          <div className="p-4 rounded-3xl bg-amber-500/10 border border-amber-500/20 text-amber-400 w-fit mx-auto">
+            <Clock className="w-10 h-10" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-extrabold text-white leading-snug tracking-tight">
+              Daily Submission Window Closed (Closes at 3:00 PM PKT)
+            </h2>
+            <p className="text-xs text-slate-300/80 leading-relaxed">
+              Assembly photos for {institution.code} can only be submitted before 3:00 PM Pakistan Standard Time.
+            </p>
+          </div>
+          <div className="p-4 rounded-2xl bg-slate-950/50 border border-white/10 text-left">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Institution Campus</p>
+            <h3 className="mt-1 text-sm font-bold text-white">{institution.name}</h3>
           </div>
         </div>
       </main>
