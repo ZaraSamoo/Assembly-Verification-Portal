@@ -49,7 +49,7 @@ interface CollegeRow {
 }
 
 const GLASS_CARD =
-  'bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl shadow-[0_12px_40px_rgba(0,0,0,0.4)]';
+  'bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)]';
 
 function karachiISO(value?: Date) {
   return (value ?? new Date()).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
@@ -119,7 +119,7 @@ function resolveStatus(submission: Submission | null, absence: 'pending' | 'miss
 
 function statusCopy(status: DisplayStatus) {
   if (status === 'pending') return 'Pending';
-  if (status === 'missing') return 'Missing / Absent';
+  if (status === 'missing') return 'Pending / Missing';
   return 'Verified';
 }
 
@@ -345,13 +345,11 @@ export default function Home() {
     window.URL.revokeObjectURL(url);
   };
 
-  const ringRadius = 38;
-  const ringCircumference = 2 * Math.PI * ringRadius;
-  const ringDashoffset = ringCircumference - (metrics.compliance / 100) * ringCircumference;
+  const isClosedNow = isWindowClosed(now);
 
   return (
-    <main className="min-h-screen bg-[#110B24] text-slate-100 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 font-sans relative overflow-hidden">
-      {/* Background Velvet Plum Ambient Mesh Glow */}
+    <div className="bg-[#110B24] text-slate-100 min-h-screen p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 font-sans relative overflow-hidden">
+      {/* Background Velvet Plum Ambient Radial Mesh Glow */}
       <div
         className="pointer-events-none absolute inset-0 z-0"
         style={{
@@ -361,17 +359,17 @@ export default function Home() {
       />
 
       <div className="relative z-10 space-y-6">
-        {/* Top Header & Navigation Toolbar */}
-        <header className={`${GLASS_CARD} p-5 sm:p-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
+        {/* 3. Header & Controls Layout */}
+        <header className="bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-extrabold uppercase tracking-widest text-fuchsia-400">
                 Government of Sindh
               </span>
               <span className="text-slate-600">•</span>
-              <span className="text-xs font-semibold text-slate-400">Education Department</span>
+              <span className="text-xs font-semibold text-slate-400">College Education Department</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-extrabold bg-gradient-to-r from-white via-slate-100 to-fuchsia-300 bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl font-extrabold bg-gradient-to-r from-white via-slate-100 to-fuchsia-300 bg-clip-text text-transparent leading-relaxed">
               Assembly Verification Portal
             </h1>
           </div>
@@ -398,94 +396,91 @@ export default function Home() {
             <button
               type="button"
               onClick={exportCsv}
-              className="inline-flex h-10 items-center gap-2 rounded-2xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:from-fuchsia-500 hover:to-indigo-500 px-4 text-xs font-bold text-white shadow-lg shadow-fuchsia-600/25 transition active:scale-[0.98] cursor-pointer"
+              className="bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:from-fuchsia-500 hover:to-indigo-500 text-white rounded-2xl px-4 py-2 text-xs font-bold shadow-lg shadow-fuchsia-600/25 transition active:scale-[0.98] cursor-pointer inline-flex items-center gap-2"
             >
               <Download className="h-4 w-4" />
-              Export Report
+              Export Audit CSV
             </button>
           </div>
         </header>
 
-        {/* 3. KPI METRIC CARDS (Strict 4-Column Grid) */}
+        {/* 2. Fix 4-Column Grid: Responsive 4-column grid */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Card 1: Total Registered Colleges (Coral Accent) */}
-          <div className="rounded-3xl bg-gradient-to-br from-[#FF6B6B]/15 via-[#231849]/60 to-[#191136]/90 border border-[#FF6B6B]/25 p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#FF8E53]">Total Registered</p>
-              <p className="mt-1.5 text-3xl font-extrabold text-white">{metrics.total}</p>
-              <p className="mt-1 text-[11px] text-slate-300/70">College Campuses</p>
+          {/* Card 1: Total Colleges (Coral Accent) */}
+          <div className="bg-gradient-to-br from-[#FF6B6B]/15 via-[#231849]/60 to-[#191136]/90 border border-[#FF6B6B]/25 rounded-3xl p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#FF8E53]">Total Colleges</p>
+              <p className="text-3xl font-extrabold text-white leading-tight">{metrics.total}</p>
+              <p className="text-[11px] text-slate-300/70 leading-relaxed">Registered Campuses</p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF6B6B]/20 text-[#FF6B6B] border border-[#FF6B6B]/40 shadow-inner">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF6B6B]/20 text-[#FF6B6B] border border-[#FF6B6B]/40 shadow-inner shrink-0">
               <Building2 className="h-6 w-6" />
             </div>
           </div>
 
-          {/* Card 2: Submitted Today (Fuchsia Neon Accent) */}
-          <div className="rounded-3xl bg-gradient-to-br from-[#E056FD]/15 via-[#231849]/60 to-[#191136]/90 border border-[#E056FD]/25 p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
-            <div>
+          {/* Card 2: Submitted Today (Fuchsia Accent) */}
+          <div className="bg-gradient-to-br from-[#E056FD]/15 via-[#231849]/60 to-[#191136]/90 border border-[#E056FD]/25 rounded-3xl p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
+            <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-wider text-[#E056FD]">Submitted Today</p>
-              <div className="mt-1.5 flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-emerald-300">{metrics.submitted}</span>
-                <span className="text-xs font-bold text-emerald-400/80">({metrics.compliance.toFixed(0)}%)</span>
-              </div>
-              <p className="mt-1 text-[11px] text-slate-300/70">Verified Submissions</p>
+              <p className="text-3xl font-extrabold text-emerald-300 leading-tight">
+                {metrics.submitted} <span className="text-xs font-bold text-emerald-400/80 font-normal">({metrics.submitted} ({metrics.compliance.toFixed(0)}%))</span>
+              </p>
+              <p className="text-[11px] text-slate-300/70 leading-relaxed">Verified Logged Photos</p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E056FD]/20 text-[#E056FD] border border-[#E056FD]/40 shadow-inner">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E056FD]/20 text-[#E056FD] border border-[#E056FD]/40 shadow-inner shrink-0">
               <CheckCircle2 className="h-6 w-6" />
             </div>
           </div>
 
           {/* Card 3: Pending / Missing (Lavender Accent) */}
-          <div className="rounded-3xl bg-gradient-to-br from-[#a29bfe]/15 via-[#231849]/60 to-[#191136]/90 border border-[#a29bfe]/25 p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#a29bfe]">
-                {metrics.absence === 'missing' ? 'Missing / Absent' : 'Pending'}
-              </p>
-              <p className="mt-1.5 text-3xl font-extrabold text-amber-300">{metrics.pending}</p>
-              <p className="mt-1 text-[11px] text-slate-300/70">Awaiting Capture</p>
+          <div className="bg-gradient-to-br from-[#a29bfe]/15 via-[#231849]/60 to-[#191136]/90 border border-[#a29bfe]/25 rounded-3xl p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#a29bfe]">Pending / Missing</p>
+              <p className="text-3xl font-extrabold text-amber-300 leading-tight">{metrics.pending}</p>
+              <p className="text-[11px] text-slate-300/70 leading-relaxed">Awaiting Verification</p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#6C5CE7]/20 text-[#a29bfe] border border-[#6C5CE7]/40 shadow-inner">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#6C5CE7]/20 text-[#a29bfe] border border-[#6C5CE7]/40 shadow-inner shrink-0">
               <Clock className="h-6 w-6" />
             </div>
           </div>
 
-          {/* Card 4: Compliance Rate (Cyan Accent with Mini Progress Bar) */}
+          {/* Card 4: Compliance Rate (Cyan Accent with Smooth Progress Bar) */}
           <div className="rounded-3xl bg-gradient-to-br from-[#00d2d3]/15 via-[#231849]/60 to-[#191136]/90 border border-[#00d2d3]/25 p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
             <div className="w-full space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wider text-[#00d2d3]">Compliance Rate</p>
                 <TrendingUp className="h-5 w-5 text-[#00d2d3]" />
               </div>
-              <p className="text-3xl font-extrabold text-white">{metrics.compliance.toFixed(1)}%</p>
+              <p className="text-3xl font-extrabold text-white leading-tight">{metrics.compliance.toFixed(1)}%</p>
               <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-[#00d2d3] to-emerald-400 transition-all duration-500"
                   style={{ width: `${Math.min(100, Math.max(0, metrics.compliance))}%` }}
                 />
               </div>
-              <p className="text-[11px] text-slate-300/70">{metrics.submitted} of {metrics.total} colleges</p>
+              <p className="text-[11px] text-slate-300/70 leading-relaxed">{metrics.submitted} of {metrics.total} colleges</p>
             </div>
           </div>
         </section>
 
-        {/* 4. ANALYTICS GRID (Strict 2-Column Asymmetric Layout) */}
+        {/* ANALYTICS & SUBMISSIONS SECTION (2-Column Asymmetric Grid) */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Card (2 Columns): 7-Day Compliance Velocity Area Chart */}
-          <article className="lg:col-span-2 bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col justify-between space-y-4">
+          {/* Left: Daily Compliance Breakdown Bar (2 Columns) */}
+          <article className="lg:col-span-2 bg-[#1D143D]/70 border border-white/[0.08] rounded-3xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col justify-between space-y-4">
             <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <BarChart3 className="h-4 w-4 text-fuchsia-400" />
-                  7-Day Compliance Velocity
+                  7-Day Compliance Breakdown
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">Submissions trend over the past 7 days</p>
+                <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">Daily institutional submission performance in PKT</p>
               </div>
               <span className="text-[10px] font-bold text-fuchsia-300 uppercase tracking-wider bg-fuchsia-500/10 px-3 py-1 rounded-full border border-fuchsia-500/20">
-                PKT Velocity
+                PKT Analytics
               </span>
             </div>
 
-            {/* Strict Fixed-Height Chart Container */}
+            {/* Strict Fixed-Height Area Spline Chart Container */}
             <div className="h-56 w-full relative">
               <svg viewBox="0 0 500 180" className="w-full h-full overflow-visible" preserveAspectRatio="none">
                 <defs>
@@ -495,16 +490,14 @@ export default function Home() {
                   </linearGradient>
                 </defs>
 
-                {/* Background Grid Lines */}
+                {/* Grid Lines */}
                 <line x1="0" y1="30" x2="500" y2="30" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
                 <line x1="0" y1="80" x2="500" y2="80" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
                 <line x1="0" y1="130" x2="500" y2="130" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
 
-                {/* Area Fill & Curve Path */}
                 <path d={chart.areaD} fill="url(#plumGradient)" />
                 <path d={chart.d} fill="none" stroke="#E056FD" strokeWidth="3" />
 
-                {/* Hoverable Data Point Circles */}
                 {chart.points.map((point, index) => (
                   <g key={trend[index]?.date}>
                     <circle
@@ -522,7 +515,6 @@ export default function Home() {
                 ))}
               </svg>
 
-              {/* Data Point Hover Tooltip */}
               {hoverDay !== null && trend[hoverDay] && (
                 <div className="pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 rounded-xl border border-white/[0.08] bg-[#1E1442]/95 px-3.5 py-2 text-xs text-white shadow-xl backdrop-blur-md">
                   <span className="font-bold text-fuchsia-300">{trend[hoverDay].label}</span> ({trend[hoverDay].date}):{' '}
@@ -531,7 +523,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* Day Labels */}
             <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1 pt-1">
               {trend.map((day) => (
                 <span key={day.date} className="hover:text-fuchsia-300 transition-colors">
@@ -541,76 +532,56 @@ export default function Home() {
             </div>
           </article>
 
-          {/* Right Card (1 Column): Compliance Ring Gauge & Regional Summary */}
-          <article className="lg:col-span-1 bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col justify-between space-y-4">
+          {/* Right: Policy & Cutoff Card with clear window status (1 Column) */}
+          <article className="lg:col-span-1 bg-[#1D143D]/70 border border-white/[0.08] rounded-3xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col justify-between space-y-4">
             <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-fuchsia-400" />
-                Regional Summary
+                <ShieldCheck className="h-4 w-4 text-fuchsia-400" />
+                Policy &amp; Cutoff Rules
               </h3>
-              <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                Today
+              <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
+                isClosedNow
+                  ? 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+                  : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+              }`}>
+                {isClosedNow ? 'Window Closed' : 'Window Active'}
               </span>
             </div>
 
-            {/* Compact Ring Gauge Container */}
-            <div className="w-40 h-40 mx-auto relative flex items-center justify-center py-2">
-              <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
-                <circle cx="54" cy="54" r={ringRadius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="9" />
-                <circle
-                  cx="54"
-                  cy="54"
-                  r={ringRadius}
-                  fill="none"
-                  stroke="url(#ringGradient)"
-                  strokeWidth="9"
-                  strokeLinecap="round"
-                  strokeDasharray={ringCircumference}
-                  strokeDashoffset={ringDashoffset}
-                  className="transition-all duration-700 ease-out"
-                />
-                <defs>
-                  <linearGradient id="ringGradient" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#E056FD" />
-                    <stop offset="100%" stopColor="#00d2d3" />
-                  </linearGradient>
-                </defs>
-              </svg>
-
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-2xl font-extrabold text-white leading-none">{metrics.compliance.toFixed(0)}%</span>
-                <span className="text-[10px] font-semibold text-fuchsia-300 uppercase tracking-wider mt-1">Verified Today</span>
+            <div className="space-y-3 py-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Daily Cutoff Window:</span>
+                <span className="text-xs font-bold text-fuchsia-300 font-mono">3:00 PM PKT</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Timezone Evaluation:</span>
+                <span className="text-xs font-bold text-white font-mono">Asia/Karachi (UTC+5)</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Binary Status Policy:</span>
+                <span className="text-xs font-bold text-emerald-300">Submitted vs Missing</span>
               </div>
             </div>
 
-            {/* Regional Metrics Breakdown */}
-            <div className="space-y-2.5 text-xs bg-[#170E33]/60 p-4 rounded-2xl border border-white/[0.05]">
-              <div className="flex justify-between items-center text-slate-300">
-                <span>Total Active Campuses:</span>
-                <span className="font-bold text-white font-mono">{metrics.total}</span>
-              </div>
-              <div className="flex justify-between items-center text-slate-300">
-                <span>Verified Submissions:</span>
-                <span className="font-bold text-emerald-300 font-mono">{metrics.submitted}</span>
-              </div>
-              <div className="flex justify-between items-center text-slate-300">
-                <span>{metrics.absence === 'missing' ? 'Missing / Absent:' : 'Pending:'}</span>
-                <span className="font-bold text-amber-300 font-mono">{metrics.pending}</span>
-              </div>
+            <div className="p-4 rounded-2xl bg-[#170E33]/80 border border-white/[0.06] text-xs text-slate-300 space-y-2 leading-relaxed">
+              <p className="font-semibold text-white">Cutoff Evaluation Rule:</p>
+              <p className="text-[11px] text-slate-400">
+                Submissions captured prior to 3:00 PM PKT display as Verified or Pending. After 3:00 PM PKT, unsubmitted institutions transition strictly to Missing / Absent status.
+              </p>
             </div>
           </article>
         </section>
 
-        {/* 5. INSTITUTIONAL SUBMISSIONS FEED & TOOLBAR */}
-        <section className={`${GLASS_CARD} p-5 sm:p-6 space-y-4`}>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            {/* Segmented Filter Tabs */}
+        {/* Institutional Submissions Feed */}
+        <section className="bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-5 sm:p-6 space-y-4 shadow-[0_12px_40px_rgba(0,0,0,0.4)]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Segmented Filter Pills */}
             <div className="flex flex-wrap gap-2">
               {(
                 [
                   ['all', `All (${metrics.total})`],
                   ['submitted', `Submitted (${metrics.submitted})`],
-                  ['missing', `${metrics.absence === 'missing' ? 'Missing / Absent' : 'Pending'} (${metrics.pending})`],
+                  ['missing', `Pending / Missing (${metrics.pending})`],
                 ] as [StatusTab, string][]
               ).map(([id, label]) => (
                 <button
@@ -628,7 +599,7 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Dark Pill Search Bar */}
+            {/* Dark Pill Search Input */}
             <label className="relative min-w-0 flex-1 sm:max-w-xs">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
@@ -661,17 +632,16 @@ export default function Home() {
                 return (
                   <article
                     key={asId(row.institution.id)}
-                    className="bg-[#1D143D]/70 hover:bg-[#261B4E] border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between gap-4 transition-all duration-200"
+                    className="bg-[#1D143D]/70 hover:bg-[#251B4E] border border-white/[0.06] rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all duration-200"
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
-                      {/* Monospace Code Pill */}
                       <span className="bg-[#2E245C] text-fuchsia-300 border border-fuchsia-500/20 px-3 py-1 rounded-xl text-xs font-bold font-mono tracking-wider shrink-0 shadow-sm">
                         {row.institution.code}
                       </span>
 
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-white truncate">{row.institution.name}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">
+                        <p className="text-sm font-bold text-white truncate leading-relaxed">{row.institution.name}</p>
+                        <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
                           {row.submission
                             ? `Logged at ${karachiClock(row.submission.submission_time || row.submission.created_at)} PKT`
                             : 'Awaiting daily assembly capture'}
@@ -680,7 +650,6 @@ export default function Home() {
                     </div>
 
                     <div className="flex items-center gap-3 shrink-0">
-                      {/* Status Badge */}
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-semibold border ${
                           isPending
@@ -691,7 +660,6 @@ export default function Home() {
                         {statusCopy(row.displayStatus)}
                       </span>
 
-                      {/* Clickable Image Thumbnail opening Lightbox */}
                       {row.submission?.image_url ? (
                         <button
                           type="button"
@@ -722,7 +690,7 @@ export default function Home() {
           onClick={() => setLightboxRow(null)}
         >
           <div
-            className={`${GLASS_CARD} max-h-[92vh] w-full max-w-4xl overflow-hidden`}
+            className="bg-[#1D143D]/90 backdrop-blur-2xl border border-white/[0.08] rounded-3xl max-h-[92vh] w-full max-w-4xl overflow-hidden shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4 p-5 border-b border-white/[0.08]">
@@ -730,8 +698,8 @@ export default function Home() {
                 <span className="bg-[#2E245C] text-fuchsia-300 border border-fuchsia-500/20 px-3 py-1 rounded-xl text-xs font-bold font-mono">
                   {lightboxRow.institution.code}
                 </span>
-                <h3 className="mt-2 text-lg font-bold text-white">{lightboxRow.institution.name}</h3>
-                <p className="mt-0.5 text-xs text-slate-400">
+                <h3 className="mt-2 text-lg font-bold text-white leading-relaxed">{lightboxRow.institution.name}</h3>
+                <p className="mt-0.5 text-xs text-slate-400 leading-relaxed">
                   Submission Timestamp: {karachiClock(lightboxRow.submission.submission_time || lightboxRow.submission.created_at)} PKT
                 </p>
               </div>
@@ -754,6 +722,6 @@ export default function Home() {
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }
