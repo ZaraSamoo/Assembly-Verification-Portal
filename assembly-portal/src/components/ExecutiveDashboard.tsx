@@ -21,8 +21,8 @@ import {
   ZoomOut,
 } from 'lucide-react';
 
-type StatusTab = 'all' | 'submitted' | 'pending' | 'late';
-type DisplayStatus = 'submitted' | 'verified' | 'late' | 'missing' | 'flagged';
+type StatusTab = 'all' | 'submitted' | 'pending';
+type DisplayStatus = 'submitted' | 'verified' | 'missing' | 'flagged';
 
 interface Institution {
   id: number | string;
@@ -41,7 +41,7 @@ interface Submission {
   image_url: string | null;
   remarks: string | null;
   status: string;
-  is_late: boolean;
+  is_late?: boolean;
   created_at: string;
 }
 
@@ -51,7 +51,7 @@ interface CollegeRow {
   displayStatus: DisplayStatus;
 }
 
-const CUTOFF_LABEL = '10:30 AM';
+const CUTOFF_LABEL = '3:00 PM PKT';
 const GLASS = 'bg-slate-900/50 backdrop-blur-xl border border-white/10 rounded-3xl shadow-xl';
 
 function todayISO() {
@@ -134,19 +134,8 @@ function formatTimeOnly(timeStr: string | null, createdAt: string | null) {
   }).format(parsed)} PKT`;
 }
 
-function isAfterCutoff(iso: string | null) {
-  if (!iso) return false;
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return false;
-  const timeStr = parsed.toLocaleTimeString('en-GB', { timeZone: 'Asia/Karachi', hour12: false });
-  const [hour, min] = timeStr.split(':').map(Number);
-  return hour > 10 || (hour === 10 && min > 30);
-}
-
 function resolveStatus(submission: Submission | null): DisplayStatus {
   if (!submission) return 'missing';
-  const late = submission.is_late || isAfterCutoff(submission.submission_time || submission.created_at);
-  if (late) return 'late';
   const status = (submission.status || '').toLowerCase();
   if (status === 'verified') return 'verified';
   if (status === 'flagged') return 'flagged';
@@ -157,8 +146,6 @@ function statusPill(status: DisplayStatus) {
   switch (status) {
     case 'verified':
       return 'bg-emerald-500/15 text-emerald-300 border-emerald-400/30';
-    case 'late':
-      return 'bg-rose-500/15 text-rose-300 border-rose-400/30';
     case 'missing':
       return 'bg-slate-500/15 text-slate-300 border-white/10';
     case 'flagged':
@@ -172,8 +159,6 @@ function statusLabel(status: DisplayStatus) {
   switch (status) {
     case 'verified':
       return 'Verified';
-    case 'late':
-      return 'Late';
     case 'missing':
       return 'Missing';
     case 'flagged':
@@ -183,11 +168,7 @@ function statusLabel(status: DisplayStatus) {
   }
 }
 
-function timingStatus(row: CollegeRow) {
-  if (!row.submission) return 'Missing';
-  if (row.displayStatus === 'late' || row.submission.is_late) return 'Late';
-  return 'On-Time';
-}
+
 
 function csvEscape(value: string) {
   if (value.includes(',') || value.includes('"') || value.includes('\n')) {
@@ -282,9 +263,8 @@ export default function ExecutiveDashboard() {
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     return rows.filter((row) => {
-      if (statusTab === 'submitted' && (row.displayStatus === 'missing')) return false;
+      if (statusTab === 'submitted' && row.displayStatus === 'missing') return false;
       if (statusTab === 'pending' && row.displayStatus !== 'missing') return false;
-      if (statusTab === 'late' && row.displayStatus !== 'late') return false;
       if (!query) return true;
       const name = row.institution.name.toLowerCase();
       const code = row.institution.code.toLowerCase();
@@ -296,9 +276,8 @@ export default function ExecutiveDashboard() {
     const total = rows.length;
     const submitted = rows.filter((row) => row.displayStatus !== 'missing').length;
     const pending = total - submitted;
-    const late = rows.filter((row) => row.displayStatus === 'late').length;
     const compliance = total === 0 ? 0 : (submitted / total) * 100;
-    return { total, submitted, pending, late, compliance };
+    return { total, submitted, pending, compliance };
   }, [rows]);
 
   const exportCsv = () => {
@@ -307,7 +286,7 @@ export default function ExecutiveDashboard() {
       'Name',
       'Submission Date',
       'Submission Time',
-      'Timing Status',
+      'Status',
       'Verification Link',
     ];
     const body = filteredRows.map((row) =>
@@ -316,7 +295,7 @@ export default function ExecutiveDashboard() {
         row.institution.name,
         row.submission?.submission_date || selectedDate,
         formatTimeOnly(row.submission?.submission_time ?? null, row.submission?.created_at ?? null),
-        timingStatus(row),
+        statusLabel(row.displayStatus),
         row.submission?.image_url || '',
       ]
         .map((value) => csvEscape(String(value)))
@@ -370,7 +349,6 @@ export default function ExecutiveDashboard() {
     { id: 'all', label: 'All' },
     { id: 'submitted', label: 'Submitted' },
     { id: 'pending', label: 'Pending / Missing' },
-    { id: 'late', label: 'Late' },
   ];
 
   return (
@@ -410,17 +388,10 @@ export default function ExecutiveDashboard() {
           </button>
         </header>
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard icon={<Building2 className="h-8 w-8 text-indigo-300" />} label="Total Colleges" value={metrics.total} />
           <MetricCard icon={<CheckCircle2 className="h-8 w-8 text-emerald-300" />} label="Submitted Today" value={metrics.submitted} accent="text-emerald-300" />
-          <MetricCard icon={<Clock className="h-8 w-8 text-amber-300" />} label="Missing Today" value={metrics.pending} accent="text-amber-300" />
-          <MetricCard
-            icon={<Timer className="h-8 w-8 text-rose-300" />}
-            label="Late Submissions"
-            value={metrics.late}
-            accent="text-rose-300"
-            hint={`After ${CUTOFF_LABEL} cutoff`}
-          />
+          <MetricCard icon={<Clock className="h-8 w-8 text-amber-300" />} label="Missing / Pending" value={metrics.pending} accent="text-amber-300" hint={`Cutoff window: ${CUTOFF_LABEL}`} />
           <MetricCard
             icon={<TrendingUp className="h-8 w-8 text-sky-300" />}
             label="Compliance Rate"
@@ -552,15 +523,7 @@ export default function ExecutiveDashboard() {
                         )}
                       </td>
                       <td className="px-5 py-4 text-slate-400">
-                        <div className="flex flex-col gap-1">
-                          {row.displayStatus === 'late' && (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-300">
-                              <AlertTriangle className="h-3.5 w-3.5" />
-                              Late after {CUTOFF_LABEL}
-                            </span>
-                          )}
-                          <span className="text-xs">{row.submission?.remarks || '—'}</span>
-                        </div>
+                        <span className="text-xs">{row.submission?.remarks || '—'}</span>
                       </td>
                     </tr>
                   ))}

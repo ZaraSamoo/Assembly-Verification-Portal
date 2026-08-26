@@ -3,31 +3,47 @@ import { createAdminClient } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+function windowStart(from?: string | null) {
+  if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) return from;
+  const now = new Date();
+  now.setDate(now.getDate() - 6);
+  return now.toISOString().slice(0, 10);
+}
+
+export async function GET(request: Request) {
   try {
+    const from = windowStart(new URL(request.url).searchParams.get('from'));
     const supabase = createAdminClient();
 
     const { data: institutions, error: instError } = await supabase
       .from('institutions')
-      .select('id, name, code, region_id, is_active')
+      .select('id, name, code, is_active')
       .order('code');
 
     if (instError) {
       return NextResponse.json({ error: instError.message }, { status: 500 });
     }
 
-    const { data: submissions, error: subError } = await supabase
+    let submissionsQuery = await supabase
       .from('assembly_submissions')
       .select('*')
+      .gte('submission_date', from)
       .order('created_at', { ascending: false });
 
-    if (subError) {
-      return NextResponse.json({ error: subError.message }, { status: 500 });
+    if (submissionsQuery.error) {
+      submissionsQuery = await supabase
+        .from('assembly_submissions')
+        .select('*')
+        .order('created_at', { ascending: false });
+    }
+
+    if (submissionsQuery.error) {
+      return NextResponse.json({ error: submissionsQuery.error.message }, { status: 500 });
     }
 
     return NextResponse.json({
       institutions: institutions ?? [],
-      submissions: submissions ?? [],
+      submissions: submissionsQuery.data ?? [],
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to load monitoring data.';
