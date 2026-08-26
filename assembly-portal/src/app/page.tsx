@@ -11,13 +11,9 @@ import {
   Clock,
   Download,
   FileText,
-  Filter,
   ImageOff,
-  LayoutDashboard,
   Loader2,
-  Radio,
   Search,
-  Settings,
   ShieldCheck,
   Sparkles,
   TrendingUp,
@@ -69,44 +65,6 @@ function karachiClock(iso?: string | null) {
     minute: '2-digit',
     hour12: true,
   });
-}
-
-function karachiNowParts(now = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Karachi',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(now);
-  const get = (type: string) => parts.find((part) => part.type === type)?.value || '00';
-  return {
-    year: Number(get('year')),
-    month: Number(get('month')),
-    day: Number(get('day')),
-    hour: Number(get('hour')),
-    minute: Number(get('minute')),
-    second: Number(get('second')),
-  };
-}
-
-function msUntilCutoff(now = new Date()) {
-  const p = karachiNowParts(now);
-  const current = ((p.hour * 60 + p.minute) * 60 + p.second) * 1000;
-  const cutoff = 15 * 60 * 60 * 1000;
-  return cutoff - current;
-}
-
-function formatCountdown(ms: number) {
-  if (ms <= 0) return 'Window Closed';
-  const total = Math.floor(ms / 1000);
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 function asId(value: number | string) {
@@ -162,7 +120,7 @@ function resolveStatus(submission: Submission | null, absence: 'pending' | 'miss
 function statusCopy(status: DisplayStatus) {
   if (status === 'pending') return 'Pending';
   if (status === 'missing') return 'Missing / Absent';
-  return 'Submitted / Verified';
+  return 'Verified';
 }
 
 function csvEscape(value: string) {
@@ -196,25 +154,45 @@ async function loadInstitutionsAndSubmissions(fromDate: string) {
   return { institutions, submissions };
 }
 
-function areaPath(values: number[], width: number, height: number) {
+function computeSplinePath(values: number[], width = 500, height = 180) {
   const max = Math.max(1, ...values);
+  const padding = 20;
+  const availHeight = height - padding * 2;
   const step = values.length > 1 ? width / (values.length - 1) : width;
-  const points = values.map((value, index) => {
-    const x = index * step;
-    const y = height - (value / max) * (height - 20) - 10;
-    return { x, y };
-  });
-  if (!points.length) return { line: '', area: '', points };
-  const line = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
-  const area = `${line} L ${points[points.length - 1].x} ${height} L 0 ${height} Z`;
-  return { line, area, points };
+
+  const points = values.map((val, idx) => ({
+    x: Math.round(idx * step * 100) / 100,
+    y: Math.round((height - padding - (val / max) * availHeight) * 100) / 100,
+  }));
+
+  if (points.length === 0) return { d: '', areaD: '', points };
+  if (points.length === 1) {
+    return {
+      d: `M 0 ${points[0].y} L ${width} ${points[0].y}`,
+      areaD: `M 0 ${points[0].y} L ${width} ${points[0].y} L ${width} ${height} L 0 ${height} Z`,
+      points,
+    };
+  }
+
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const curr = points[i];
+    const next = points[i + 1];
+    const cp1x = curr.x + (next.x - curr.x) / 2;
+    const cp1y = curr.y;
+    const cp2x = curr.x + (next.x - curr.x) / 2;
+    const cp2y = next.y;
+    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${next.x} ${next.y}`;
+  }
+
+  const areaD = `${d} L ${points[points.length - 1].x} ${height} L 0 ${height} Z`;
+  return { d, areaD, points };
 }
 
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState(karachiISO);
   const [statusTab, setStatusTab] = useState<StatusTab>('all');
   const [search, setSearch] = useState('');
-  const [headerSearch, setHeaderSearch] = useState('');
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -310,7 +288,7 @@ export default function Home() {
     return { total, submitted, pending, outstanding, compliance, absence };
   }, [rows, selectedDate, now]);
 
-  const query = (search || headerSearch).trim().toLowerCase();
+  const query = search.trim().toLowerCase();
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
@@ -319,7 +297,7 @@ export default function Home() {
       if (!query) return true;
       return row.institution.name.toLowerCase().includes(query) || row.institution.code.toLowerCase().includes(query);
     });
-  }, [rows, search, headerSearch, statusTab, query]);
+  }, [rows, search, statusTab, query]);
 
   const trend = useMemo(() => {
     const days = Array.from({ length: 7 }, (_, index) => {
@@ -339,7 +317,10 @@ export default function Home() {
     return days;
   }, [submissions, selectedDate, registered.length]);
 
-  const chart = areaPath(trend.map((day) => day.submitted), 360, 140);
+  const chart = useMemo(
+    () => computeSplinePath(trend.map((day) => day.submitted), 500, 180),
+    [trend]
+  );
 
   const exportCsv = () => {
     const headers = ['College Code', 'Name', 'Submission Date', 'Submission Time PKT', 'Status', 'Photo URL'];
@@ -349,7 +330,7 @@ export default function Home() {
         row.institution.name,
         row.submission?.submission_date || selectedDate,
         karachiClock(row.submission?.submission_time || row.submission?.created_at),
-        row.displayStatus === 'pending' || row.displayStatus === 'missing' ? statusCopy(row.displayStatus) : 'Submitted / Verified',
+        row.displayStatus === 'pending' || row.displayStatus === 'missing' ? statusCopy(row.displayStatus) : 'Verified',
         row.submission?.image_url || '',
       ]
         .map((value) => csvEscape(String(value)))
@@ -364,67 +345,48 @@ export default function Home() {
     window.URL.revokeObjectURL(url);
   };
 
-  const cutoffMs = msUntilCutoff(now);
-  const pktNow = now.toLocaleTimeString('en-US', {
-    timeZone: 'Asia/Karachi',
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-  });
-  const circumference = 2 * Math.PI * 44;
-  const dash = (metrics.compliance / 100) * circumference;
-
-  const nav = [
-    { label: 'Dashboard', icon: LayoutDashboard, active: true },
-    { label: 'Institutions', icon: Building2, active: false },
-    { label: 'Reports', icon: FileText, active: false },
-    { label: 'Analytics', icon: BarChart3, active: false },
-    { label: 'Settings', icon: Settings, active: false },
-  ];
+  const ringRadius = 38;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  const ringDashoffset = ringCircumference - (metrics.compliance / 100) * ringCircumference;
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#110B24] text-slate-100 font-sans">
-      {/* Deep Velvet Plum Ambient Radial Mesh Glows */}
+    <main className="min-h-screen bg-[#110B24] text-slate-100 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 font-sans relative overflow-hidden">
+      {/* Background Velvet Plum Ambient Mesh Glow */}
       <div
         className="pointer-events-none absolute inset-0 z-0"
         style={{
           backgroundImage:
-            'radial-gradient(circle at 80% 10%, rgba(217, 70, 239, 0.14) 0%, transparent 60%), radial-gradient(circle at 15% 90%, rgba(99, 102, 241, 0.15) 0%, transparent 60%)',
+            'radial-gradient(circle at 80% 10%, rgba(217, 70, 239, 0.12) 0%, transparent 60%), radial-gradient(circle at 15% 90%, rgba(99, 102, 241, 0.14) 0%, transparent 60%)',
         }}
       />
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        {/* Top Header & Floating Toolbar */}
-        <header className={`${GLASS_CARD} flex flex-col gap-4 px-6 py-4.5 lg:flex-row lg:items-center lg:justify-between`}>
+      <div className="relative z-10 space-y-6">
+        {/* Top Header & Navigation Toolbar */}
+        <header className={`${GLASS_CARD} p-5 sm:p-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
           <div className="space-y-1">
-            <p className="text-xs text-slate-400 font-medium">
-              Home <span className="text-slate-600">/</span> Dashboard <span className="text-slate-600">/</span>{' '}
-              <span className="text-fuchsia-300 font-semibold">Today (PKT)</span>
-            </p>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-white via-slate-100 to-fuchsia-300 bg-clip-text text-transparent">
-              Government of Sindh • Education Department
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-fuchsia-400">
+                Government of Sindh
+              </span>
+              <span className="text-slate-600">•</span>
+              <span className="text-xs font-semibold text-slate-400">Education Department</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-extrabold bg-gradient-to-r from-white via-slate-100 to-fuchsia-300 bg-clip-text text-transparent">
+              Assembly Verification Portal
             </h1>
           </div>
+
           <div className="flex flex-wrap items-center gap-3">
-            <label className="relative min-w-[200px] flex-1">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                value={headerSearch}
-                onChange={(event) => setHeaderSearch(event.target.value)}
-                placeholder="Quick search..."
-                className="h-10 w-full rounded-full border border-white/[0.08] bg-[#20183F]/80 py-2 pl-9.5 pr-4 text-sm text-white placeholder-slate-400 outline-none focus:border-fuchsia-500/50 transition-all"
-              />
-            </label>
-            <label className="flex h-10 items-center gap-2 rounded-2xl border border-white/[0.08] bg-[#20183F]/80 px-3.5 text-xs text-slate-200">
+            <label className="flex h-10 items-center gap-2 rounded-2xl border border-white/[0.08] bg-[#1E1442]/80 px-3.5 text-xs text-slate-200 shadow-inner">
               <Calendar className="h-4 w-4 text-fuchsia-400" />
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(event) => setSelectedDate(event.target.value)}
-                className="bg-transparent font-medium outline-none text-white"
+                className="bg-transparent font-semibold outline-none text-white cursor-pointer"
               />
             </label>
+
             <span className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3.5 py-2 text-xs font-semibold text-emerald-300">
               <span className="relative flex h-2 w-2">
                 <span className={`absolute inset-0 rounded-full bg-emerald-400 ${live ? 'animate-ping opacity-75' : 'opacity-0'}`} />
@@ -432,10 +394,11 @@ export default function Home() {
               </span>
               Live Feed
             </span>
+
             <button
               type="button"
               onClick={exportCsv}
-              className="inline-flex h-10 items-center gap-2 rounded-2xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:from-fuchsia-500 hover:to-indigo-500 px-4 text-sm font-semibold text-white shadow-lg shadow-fuchsia-600/25 transition active:scale-[0.98]"
+              className="inline-flex h-10 items-center gap-2 rounded-2xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:from-fuchsia-500 hover:to-indigo-500 px-4 text-xs font-bold text-white shadow-lg shadow-fuchsia-600/25 transition active:scale-[0.98] cursor-pointer"
             >
               <Download className="h-4 w-4" />
               Export Report
@@ -443,43 +406,36 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Hero Section Title */}
-        <section className="px-1">
-          <h1 className="text-3xl font-extrabold tracking-tight md:text-4xl text-white">
-            Daily Assembly Verification
-          </h1>
-          <p className="mt-1 text-sm text-slate-300/80">
-            Real-time compliance monitoring for Government Colleges across Sindh.
-          </p>
-        </section>
-
-        {/* Accent KPI Gradient Cards (Strict 4-Column Grid) */}
+        {/* 3. KPI METRIC CARDS (Strict 4-Column Grid) */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Card 1: Total Colleges (Coral Accents) */}
+          {/* Card 1: Total Registered Colleges (Coral Accent) */}
           <div className="rounded-3xl bg-gradient-to-br from-[#FF6B6B]/15 via-[#231849]/60 to-[#191136]/90 border border-[#FF6B6B]/25 p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#FF8E53]">Total Colleges</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#FF8E53]">Total Registered</p>
               <p className="mt-1.5 text-3xl font-extrabold text-white">{metrics.total}</p>
-              <p className="mt-1 text-[11px] text-slate-300/70">Registered Campuses</p>
+              <p className="mt-1 text-[11px] text-slate-300/70">College Campuses</p>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF6B6B]/20 text-[#FF6B6B] border border-[#FF6B6B]/40 shadow-inner">
               <Building2 className="h-6 w-6" />
             </div>
           </div>
 
-          {/* Card 2: Submitted Today (Fuchsia Neon Accents) */}
+          {/* Card 2: Submitted Today (Fuchsia Neon Accent) */}
           <div className="rounded-3xl bg-gradient-to-br from-[#E056FD]/15 via-[#231849]/60 to-[#191136]/90 border border-[#E056FD]/25 p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-[#E056FD]">Submitted Today</p>
-              <p className="mt-1.5 text-3xl font-extrabold text-emerald-300">{metrics.submitted}</p>
-              <p className="mt-1 text-[11px] text-slate-300/70">Photos Verified & Logged</p>
+              <div className="mt-1.5 flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-emerald-300">{metrics.submitted}</span>
+                <span className="text-xs font-bold text-emerald-400/80">({metrics.compliance.toFixed(0)}%)</span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-300/70">Verified Submissions</p>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E056FD]/20 text-[#E056FD] border border-[#E056FD]/40 shadow-inner">
               <CheckCircle2 className="h-6 w-6" />
             </div>
           </div>
 
-          {/* Card 3: Missing / Pending (Lavender Accents) */}
+          {/* Card 3: Pending / Missing (Lavender Accent) */}
           <div className="rounded-3xl bg-gradient-to-br from-[#a29bfe]/15 via-[#231849]/60 to-[#191136]/90 border border-[#a29bfe]/25 p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-[#a29bfe]">
@@ -493,7 +449,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Card 4: Compliance Rate (Cyan Gradient Progress) */}
+          {/* Card 4: Compliance Rate (Cyan Accent with Mini Progress Bar) */}
           <div className="rounded-3xl bg-gradient-to-br from-[#00d2d3]/15 via-[#231849]/60 to-[#191136]/90 border border-[#00d2d3]/25 p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
             <div className="w-full space-y-2">
               <div className="flex items-center justify-between">
@@ -512,243 +468,251 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Main Grid: 2 Columns */}
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.95fr)]">
-          {/* Left Section: Filter Pills & Live Institutional Feed */}
-          <section className={`${GLASS_CARD} p-5 flex flex-col space-y-4`}>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              {/* Filter Pill Tabs */}
-              <div className="flex flex-wrap gap-2">
-                {(
-                  [
-                    ['all', `All Colleges (${metrics.total})`],
-                    ['submitted', `Submitted Today (${metrics.submitted})`],
-                    ['missing', `${metrics.absence === 'missing' ? 'Missing / Absent' : 'Pending'} (${metrics.pending})`],
-                  ] as [StatusTab, string][]
-                ).map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setStatusTab(id)}
-                    className={`rounded-full px-4 py-2 text-xs font-bold transition-all ${
-                      statusTab === id
-                        ? 'bg-fuchsia-600/30 border border-fuchsia-500/40 text-fuchsia-200 shadow-[0_0_20px_rgba(217,70,239,0.25)]'
-                        : 'border border-white/[0.08] bg-[#20183F]/60 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
+        {/* 4. ANALYTICS GRID (Strict 2-Column Asymmetric Layout) */}
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Card (2 Columns): 7-Day Compliance Velocity Area Chart */}
+          <article className="lg:col-span-2 bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col justify-between space-y-4">
+            <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-fuchsia-400" />
+                  7-Day Compliance Velocity
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Submissions trend over the past 7 days</p>
               </div>
-
-              {/* Filter Bar Search Input */}
-              <label className="relative min-w-0 flex-1 lg:max-w-xs">
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Filter by name or code (KQ...)"
-                  className="h-10 w-full rounded-full border border-white/[0.08] bg-[#20183F]/80 py-2 pl-9.5 pr-4 text-xs text-white placeholder-slate-400 outline-none focus:border-fuchsia-500/50"
-                />
-              </label>
+              <span className="text-[10px] font-bold text-fuchsia-300 uppercase tracking-wider bg-fuchsia-500/10 px-3 py-1 rounded-full border border-fuchsia-500/20">
+                PKT Velocity
+              </span>
             </div>
 
-            {errorMessage && (
-              <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
-                <span>{errorMessage}</span>
-              </div>
-            )}
+            {/* Strict Fixed-Height Chart Container */}
+            <div className="h-56 w-full relative">
+              <svg viewBox="0 0 500 180" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="plumGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#E056FD" stopOpacity="0.45" />
+                    <stop offset="100%" stopColor="#E056FD" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
 
-            {loading ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-20">
-                <Loader2 className="h-8 w-8 animate-spin text-fuchsia-400" />
-                <p className="text-xs text-slate-400">Syncing live institutional feed...</p>
-              </div>
-            ) : filteredRows.length === 0 ? (
-              <div className="py-20 text-center text-xs text-slate-400">No colleges match the current search filters.</div>
-            ) : (
-              <div className="max-h-[64vh] space-y-3 overflow-y-auto pr-1">
-                {filteredRows.map((row) => {
-                  const isPending = row.displayStatus === 'pending' || row.displayStatus === 'missing';
-                  return (
-                    <article
-                      key={asId(row.institution.id)}
-                      className="bg-[#1E173E]/60 hover:bg-[#281F52]/80 border border-white/[0.06] hover:border-fuchsia-500/30 rounded-2xl p-4 transition-all duration-200 flex items-center justify-between gap-4"
-                    >
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        {/* Monospace Code Pill */}
-                        <span className="bg-[#2E245C] text-fuchsia-300 border border-fuchsia-500/20 px-3 py-1 rounded-xl text-xs font-bold font-mono tracking-wider shrink-0 shadow-sm">
-                          {row.institution.code}
-                        </span>
+                {/* Background Grid Lines */}
+                <line x1="0" y1="30" x2="500" y2="30" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+                <line x1="0" y1="80" x2="500" y2="80" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+                <line x1="0" y1="130" x2="500" y2="130" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
 
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-white truncate">{row.institution.name}</p>
-                          <p className="text-xs text-slate-400 mt-0.5">
-                            {row.submission
-                              ? `Logged at ${karachiClock(row.submission.submission_time || row.submission.created_at)} PKT`
-                              : 'Awaiting daily assembly capture'}
-                          </p>
-                        </div>
-                      </div>
+                {/* Area Fill & Curve Path */}
+                <path d={chart.areaD} fill="url(#plumGradient)" />
+                <path d={chart.d} fill="none" stroke="#E056FD" strokeWidth="3" />
 
-                      <div className="flex items-center gap-3 shrink-0">
-                        {/* Glowing Status Badge */}
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-semibold border ${
-                            isPending
-                              ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                              : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20 shadow-[0_0_14px_rgba(16,185,129,0.2)]'
-                          }`}
-                        >
-                          {statusCopy(row.displayStatus)}
-                        </span>
-
-                        {/* Clickable Image Thumbnail */}
-                        {row.submission?.image_url ? (
-                          <button
-                            type="button"
-                            onClick={() => setLightboxRow(row)}
-                            className="h-12 w-16 shrink-0 overflow-hidden rounded-xl border border-white/[0.08] hover:border-fuchsia-500/40 transition-all"
-                            aria-label={`Inspect photo for ${row.institution.name}`}
-                          >
-                            <img src={row.submission.image_url} alt="" className="h-full w-full object-cover hover:scale-105 transition-transform" />
-                          </button>
-                        ) : (
-                          <div className="flex h-12 w-16 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-[#120D26]/50 text-slate-500">
-                            <ImageOff className="h-4 w-4" />
-                          </div>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          {/* Right Section: Analytics Widgets */}
-          <aside className="space-y-5">
-            {/* Card 1: Executive Summary Gauge */}
-            <article className={`${GLASS_CARD} p-5 space-y-4`}>
-              <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
-                <p className="text-xs font-bold uppercase tracking-wider text-fuchsia-300">Today's Executive Summary</p>
-                <Sparkles className="h-4 w-4 text-fuchsia-400" />
-              </div>
-              <div className="flex items-center gap-5 pt-1">
-                <svg viewBox="0 0 108 108" className="h-28 w-28 shrink-0">
-                  <circle cx="54" cy="54" r="44" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10" />
-                  <circle
-                    cx="54"
-                    cy="54"
-                    r="44"
-                    fill="none"
-                    stroke="url(#plumGauge)"
-                    strokeWidth="10"
-                    strokeLinecap="round"
-                    strokeDasharray={`${dash} ${circumference}`}
-                    transform="rotate(-90 54 54)"
-                  />
-                  <defs>
-                    <linearGradient id="plumGauge" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#E056FD" />
-                      <stop offset="100%" stopColor="#6C5CE7" />
-                    </linearGradient>
-                  </defs>
-                  <text x="54" y="52" textAnchor="middle" fill="#ffffff" fontSize="18" fontWeight="800">
-                    {metrics.compliance.toFixed(0)}%
-                  </text>
-                  <text x="54" y="68" textAnchor="middle" fill="#f0abfc" fontSize="8" fontWeight="600">
-                    compliance
-                  </text>
-                </svg>
-                <div className="space-y-2.5 text-xs flex-1">
-                  <div className="flex justify-between items-center text-slate-300">
-                    <span>Total Active Colleges:</span>
-                    <span className="font-bold text-white font-mono">{metrics.total}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-slate-300">
-                    <span>Submitted Today:</span>
-                    <span className="font-bold text-emerald-300 font-mono">{metrics.submitted}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-slate-300">
-                    <span>{metrics.absence === 'missing' ? 'Missing / Absent:' : 'Pending:'}</span>
-                    <span className="font-bold text-amber-300 font-mono">{metrics.pending}</span>
-                  </div>
-                </div>
-              </div>
-            </article>
-
-            {/* Card 2: 7-Day Compliance Velocity Chart */}
-            <article className={`${GLASS_CARD} p-5 space-y-3`}>
-              <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
-                <p className="text-xs font-bold uppercase tracking-wider text-fuchsia-300">7-Day Compliance Velocity</p>
-                <BarChart3 className="h-4 w-4 text-fuchsia-400" />
-              </div>
-              <div className="relative pt-2">
-                <svg viewBox="0 0 360 140" className="h-36 w-full overflow-visible">
-                  <defs>
-                    <linearGradient id="velocityFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#E056FD" stopOpacity="0.45" />
-                      <stop offset="100%" stopColor="#E056FD" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <path d={chart.area} fill="url(#velocityFill)" />
-                  <path d={chart.line} fill="none" stroke="#E056FD" strokeWidth="3" />
-                  {chart.points.map((point, index) => (
+                {/* Hoverable Data Point Circles */}
+                {chart.points.map((point, index) => (
+                  <g key={trend[index]?.date}>
                     <circle
-                      key={trend[index]?.date}
                       cx={point.x}
                       cy={point.y}
-                      r={hoverDay === index ? 5.5 : 4}
+                      r={hoverDay === index ? 6 : 4}
                       fill="#ffffff"
                       stroke="#E056FD"
-                      strokeWidth="2"
-                      className="cursor-pointer transition-all"
+                      strokeWidth="2.5"
+                      className="cursor-pointer transition-all duration-150"
                       onMouseEnter={() => setHoverDay(index)}
                       onMouseLeave={() => setHoverDay(null)}
                     />
-                  ))}
-                </svg>
+                  </g>
+                ))}
+              </svg>
 
-                {hoverDay !== null && trend[hoverDay] && (
-                  <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded-xl border border-white/[0.08] bg-[#1E173E]/95 px-3 py-1.5 text-xs text-white shadow-xl backdrop-blur-md">
-                    <span className="font-bold text-fuchsia-300">{trend[hoverDay].label}</span>: {trend[hoverDay].submitted} submitted ({trend[hoverDay].pct.toFixed(0)}%)
-                  </div>
-                )}
-
-                <div className="mt-2 flex justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
-                  {trend.map((day) => (
-                    <span key={day.date}>{day.label}</span>
-                  ))}
+              {/* Data Point Hover Tooltip */}
+              {hoverDay !== null && trend[hoverDay] && (
+                <div className="pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 rounded-xl border border-white/[0.08] bg-[#1E1442]/95 px-3.5 py-2 text-xs text-white shadow-xl backdrop-blur-md">
+                  <span className="font-bold text-fuchsia-300">{trend[hoverDay].label}</span> ({trend[hoverDay].date}):{' '}
+                  <span className="font-bold text-emerald-300">{trend[hoverDay].submitted}</span> submitted ({trend[hoverDay].pct.toFixed(0)}%)
                 </div>
-              </div>
-            </article>
+              )}
+            </div>
 
-            {/* Card 3: Cutoff Timer & Rule Info */}
-            <article className={`${GLASS_CARD} p-5 space-y-4`}>
-              <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
-                <p className="text-xs font-bold uppercase tracking-wider text-fuchsia-300">Cutoff Window & Timer</p>
-                <Clock className="h-4 w-4 text-fuchsia-400" />
+            {/* Day Labels */}
+            <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1 pt-1">
+              {trend.map((day) => (
+                <span key={day.date} className="hover:text-fuchsia-300 transition-colors">
+                  {day.label}
+                </span>
+              ))}
+            </div>
+          </article>
+
+          {/* Right Card (1 Column): Compliance Ring Gauge & Regional Summary */}
+          <article className="lg:col-span-1 bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col justify-between space-y-4">
+            <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-fuchsia-400" />
+                Regional Summary
+              </h3>
+              <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                Today
+              </span>
+            </div>
+
+            {/* Compact Ring Gauge Container */}
+            <div className="w-40 h-40 mx-auto relative flex items-center justify-center py-2">
+              <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+                <circle cx="54" cy="54" r={ringRadius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="9" />
+                <circle
+                  cx="54"
+                  cy="54"
+                  r={ringRadius}
+                  fill="none"
+                  stroke="url(#ringGradient)"
+                  strokeWidth="9"
+                  strokeLinecap="round"
+                  strokeDasharray={ringCircumference}
+                  strokeDashoffset={ringDashoffset}
+                  className="transition-all duration-700 ease-out"
+                />
+                <defs>
+                  <linearGradient id="ringGradient" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#E056FD" />
+                    <stop offset="100%" stopColor="#00d2d3" />
+                  </linearGradient>
+                </defs>
+              </svg>
+
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span className="text-2xl font-extrabold text-white leading-none">{metrics.compliance.toFixed(0)}%</span>
+                <span className="text-[10px] font-semibold text-fuchsia-300 uppercase tracking-wider mt-1">Verified Today</span>
               </div>
-              <div>
-                <p className="text-3xl font-extrabold text-white font-mono tracking-tight">{formatCountdown(cutoffMs)}</p>
-                <p className="text-xs text-slate-300 mt-1">Until 3:00 PM PKT deadline • current time: <span className="text-fuchsia-300 font-bold">{pktNow}</span></p>
+            </div>
+
+            {/* Regional Metrics Breakdown */}
+            <div className="space-y-2.5 text-xs bg-[#170E33]/60 p-4 rounded-2xl border border-white/[0.05]">
+              <div className="flex justify-between items-center text-slate-300">
+                <span>Total Active Campuses:</span>
+                <span className="font-bold text-white font-mono">{metrics.total}</span>
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed bg-[#1E173E]/50 p-3 rounded-2xl border border-white/5">
-                Submissions are accepted until 3:00 PM Pakistan Standard Time. Captures after 3:00 PM are blocked on magic links and flagged as Missing/Absent.
-              </p>
-              <button
-                type="button"
-                onClick={exportCsv}
-                className="w-full py-3 rounded-2xl font-bold bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:from-fuchsia-500 hover:to-indigo-500 text-white flex items-center justify-center gap-2 text-xs transition-all shadow-lg shadow-fuchsia-600/25"
-              >
-                <Download className="h-4 w-4" />
-                Download Today's Report
-              </button>
-            </article>
-          </aside>
-        </div>
+              <div className="flex justify-between items-center text-slate-300">
+                <span>Verified Submissions:</span>
+                <span className="font-bold text-emerald-300 font-mono">{metrics.submitted}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-300">
+                <span>{metrics.absence === 'missing' ? 'Missing / Absent:' : 'Pending:'}</span>
+                <span className="font-bold text-amber-300 font-mono">{metrics.pending}</span>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        {/* 5. INSTITUTIONAL SUBMISSIONS FEED & TOOLBAR */}
+        <section className={`${GLASS_CARD} p-5 sm:p-6 space-y-4`}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* Segmented Filter Tabs */}
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ['all', `All (${metrics.total})`],
+                  ['submitted', `Submitted (${metrics.submitted})`],
+                  ['missing', `${metrics.absence === 'missing' ? 'Missing / Absent' : 'Pending'} (${metrics.pending})`],
+                ] as [StatusTab, string][]
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setStatusTab(id)}
+                  className={`rounded-full px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
+                    statusTab === id
+                      ? 'bg-fuchsia-600/30 border border-fuchsia-500/40 text-fuchsia-200 shadow-[0_0_20px_rgba(217,70,239,0.25)]'
+                      : 'border border-white/[0.08] bg-[#20183F]/60 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Dark Pill Search Bar */}
+            <label className="relative min-w-0 flex-1 sm:max-w-xs">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search college name or code..."
+                className="bg-[#1E1442] border border-white/10 rounded-full px-4 py-2.5 pl-9.5 text-xs text-white placeholder-slate-400 outline-none focus:border-fuchsia-500/50 w-full transition-all"
+              />
+            </label>
+          </div>
+
+          {errorMessage && (
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {loading ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-fuchsia-400" />
+              <p className="text-xs text-slate-400">Syncing live institutional feed...</p>
+            </div>
+          ) : filteredRows.length === 0 ? (
+            <div className="py-20 text-center text-xs text-slate-400">No colleges match the current search filters.</div>
+          ) : (
+            <div className="max-h-[64vh] space-y-3 overflow-y-auto pr-1">
+              {filteredRows.map((row) => {
+                const isPending = row.displayStatus === 'pending' || row.displayStatus === 'missing';
+                return (
+                  <article
+                    key={asId(row.institution.id)}
+                    className="bg-[#1D143D]/70 hover:bg-[#261B4E] border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between gap-4 transition-all duration-200"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      {/* Monospace Code Pill */}
+                      <span className="bg-[#2E245C] text-fuchsia-300 border border-fuchsia-500/20 px-3 py-1 rounded-xl text-xs font-bold font-mono tracking-wider shrink-0 shadow-sm">
+                        {row.institution.code}
+                      </span>
+
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-white truncate">{row.institution.name}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {row.submission
+                            ? `Logged at ${karachiClock(row.submission.submission_time || row.submission.created_at)} PKT`
+                            : 'Awaiting daily assembly capture'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      {/* Status Badge */}
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                          isPending
+                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                            : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20 shadow-[0_0_14px_rgba(16,185,129,0.2)]'
+                        }`}
+                      >
+                        {statusCopy(row.displayStatus)}
+                      </span>
+
+                      {/* Clickable Image Thumbnail opening Lightbox */}
+                      {row.submission?.image_url ? (
+                        <button
+                          type="button"
+                          onClick={() => setLightboxRow(row)}
+                          className="h-12 w-16 shrink-0 overflow-hidden rounded-xl border border-white/[0.08] hover:border-fuchsia-500/40 transition-all cursor-pointer"
+                          aria-label={`Inspect photo for ${row.institution.name}`}
+                        >
+                          <img src={row.submission.image_url} alt="" className="h-full w-full object-cover hover:scale-105 transition-transform" />
+                        </button>
+                      ) : (
+                        <div className="flex h-12 w-16 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-[#120D26]/50 text-slate-500">
+                          <ImageOff className="h-4 w-4" />
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
 
       {/* High-Resolution Lightbox Inspection Modal */}
@@ -774,7 +738,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setLightboxRow(null)}
-                className="rounded-full border border-white/[0.08] p-2 text-slate-300 hover:bg-white/10 transition-colors"
+                className="rounded-full border border-white/[0.08] p-2 text-slate-300 hover:bg-white/10 transition-colors cursor-pointer"
                 aria-label="Close modal"
               >
                 <X className="h-4 w-4" />
