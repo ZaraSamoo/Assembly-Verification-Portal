@@ -14,8 +14,6 @@ import {
   Clock,
   Sparkles,
   AlertTriangle,
-  FileCheck,
-  CheckCircle,
   Award
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -45,7 +43,7 @@ function compressImageCanvas(file: File, maxDimension = 1280, quality = 0.72): P
         let width = img.width;
         let height = img.height;
 
-        // Scale down proportionally
+        // Scale down proportionally if larger than maxDimension
         if (width > maxDimension || height > maxDimension) {
           if (width > height) {
             height = Math.round((height * maxDimension) / width);
@@ -88,6 +86,16 @@ function compressImageCanvas(file: File, maxDimension = 1280, quality = 0.72): P
   });
 }
 
+function pktDate(d = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(d);
+}
+
+function isWindowClosed(d = new Date()) {
+  const localTimeStr = d.toLocaleTimeString('en-GB', { timeZone: 'Asia/Karachi', hour12: false });
+  const [hour] = localTimeStr.split(':').map(Number);
+  return hour >= 15;
+}
+
 export default function MagicLinkAccessPage() {
   const params = useParams();
   const code = (params?.code as string) || '';
@@ -96,6 +104,7 @@ export default function MagicLinkAccessPage() {
   const [loading, setLoading] = useState(true);
   const [invalidLink, setInvalidLink] = useState(false);
   const [alreadySubmittedToday, setAlreadySubmittedToday] = useState(false);
+  const [windowClosed, setWindowClosed] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [compressedImage, setCompressedImage] = useState<CompressedImage | null>(null);
@@ -145,15 +154,7 @@ export default function MagicLinkAccessPage() {
 
       setInstitution(data as Institution);
 
-      // 1. Determine submission_date in Asia/Karachi timezone (YYYY-MM-DD)
-      const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date());
-
-      // 2. Determine cut-off (10:30 AM PKT)
-      const localTimeStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Karachi', hour12: false });
-      const [hour, min] = localTimeStr.split(':').map(Number);
-      const isLate = hour > 10 || (hour === 10 && min > 30);
-
-      // 3. Check if submission already exists today
+      const localDate = pktDate();
       const querySub: any = supabase.from('assembly_submissions');
       const { data: existingSub } = await querySub
         .select('id, submission_time, created_at')
@@ -166,9 +167,18 @@ export default function MagicLinkAccessPage() {
         const subTime = existingSub.submission_time || existingSub.created_at;
         if (subTime) {
           setSubmissionTimeFormatted(
-            new Date(subTime).toLocaleTimeString('en-US', { timeZone: 'Asia/Karachi', hour: '2-digit', minute: '2-digit', hour12: true })
+            new Date(subTime).toLocaleTimeString('en-US', {
+              timeZone: 'Asia/Karachi',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+            })
           );
         }
+      }
+
+      if (isWindowClosed()) {
+        setWindowClosed(true);
       }
     } catch (err) {
       console.error('Error fetching institution:', err);
@@ -184,14 +194,21 @@ export default function MagicLinkAccessPage() {
 
   // Auto-trigger native camera on initial mount after institution resolved
   useEffect(() => {
-    if (institution && !alreadySubmittedToday && !isSubmitted && !compressedImage && !cameraTriggeredRef.current) {
+    if (
+      institution &&
+      !alreadySubmittedToday &&
+      !isSubmitted &&
+      !compressedImage &&
+      !windowClosed &&
+      !cameraTriggeredRef.current
+    ) {
       cameraTriggeredRef.current = true;
       const timer = setTimeout(() => {
         fileInputRef.current?.click();
       }, 350);
       return () => clearTimeout(timer);
     }
-  }, [institution, alreadySubmittedToday, isSubmitted, compressedImage]);
+  }, [institution, alreadySubmittedToday, isSubmitted, compressedImage, windowClosed]);
 
   const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -227,22 +244,21 @@ export default function MagicLinkAccessPage() {
   const handleSubmitPhoto = async () => {
     if (!compressedImage || !institution) return;
 
+    if (isWindowClosed()) {
+      setWindowClosed(true);
+      setErrorMessage('Daily Submission Window Closed (Closes at 3:00 PM PKT)');
+      return;
+    }
+
     setUploading(true);
     setErrorMessage(null);
 
     try {
       const supabase = createClient();
-      
-      // 1. Calculate PKT local date, cutoff, and iso timestamp
-      const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date());
-      const localTimeStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Karachi', hour12: false });
-      const [hour, min] = localTimeStr.split(':').map(Number);
-      const isLate = hour > 10 || (hour === 10 && min > 30);
-      const isoSubmissionTime = new Date().toISOString();
-
+      const localDate = pktDate();
       const fileName = `${institution.code}_${localDate}_${Date.now()}.jpg`;
 
-      // 2. Upload to Supabase Storage bucket 'assembly-photos'
+      // 1. Upload to Supabase Storage bucket 'assembly-photos'
       const { error: storageError }: any = await supabase.storage
         .from('assembly-photos')
         .upload(fileName, compressedImage.file, {
@@ -254,21 +270,22 @@ export default function MagicLinkAccessPage() {
         throw new Error(`Storage upload failed: ${storageError.message}`);
       }
 
-      // 3. Fetch public URL
+      // 2. Fetch public URL
       const { data: urlData } = supabase.storage
         .from('assembly-photos')
         .getPublicUrl(fileName);
 
       const publicUrl = urlData.publicUrl;
+      const isoSubmissionTime = new Date().toISOString();
 
-      // 4. Insert into assembly_submissions table with exact PKT requirements
+      // 3. Insert into assembly_submissions table with exact PKT requirements
       const queryInsert: any = supabase.from('assembly_submissions');
       const { error: insertError } = await queryInsert.insert({
         institution_id: institution.id,
         submission_date: localDate,
         submission_time: isoSubmissionTime,
         image_url: publicUrl,
-        is_late: isLate,
+        is_late: false,
         status: 'submitted',
         remarks: 'Submitted via Principal Magic Link',
       });
@@ -294,38 +311,36 @@ export default function MagicLinkAccessPage() {
     }
   };
 
-  // 1. Loading Screen (Frosted Glass Spinner)
+  // 1. Loading Screen (Deep Plum Frosted Spinner)
   if (loading) {
     return (
-      <main className="bg-[#050811] min-h-screen text-slate-100 p-4 max-w-md mx-auto flex flex-col items-center justify-center font-sans relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,_rgba(99,102,241,0.15)_0%,_transparent_70%)]" />
-        <div className="w-full p-8 rounded-3xl bg-slate-900/40 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] flex flex-col items-center gap-4 text-center relative z-10">
-          <div className="relative">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
-              <Loader2 className="w-6 h-6 text-indigo-400 animate-spin" />
-            </div>
+      <main className="bg-[#110B24] min-h-screen text-slate-100 p-4 max-w-md mx-auto flex flex-col items-center justify-center font-sans relative overflow-hidden">
+        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-72 h-72 bg-fuchsia-600/15 rounded-full blur-[100px] pointer-events-none" />
+        <div className="w-full p-8 rounded-3xl bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col items-center gap-4 text-center relative z-10">
+          <div className="w-12 h-12 rounded-2xl bg-fuchsia-500/15 border border-fuchsia-500/25 flex items-center justify-center">
+            <Loader2 className="w-6 h-6 text-fuchsia-400 animate-spin" />
           </div>
           <div className="space-y-1">
-            <h3 className="text-sm font-semibold text-slate-100">Verifying Magic Access Link</h3>
-            <p className="text-xs text-slate-400">Resolving institution & session context...</p>
+            <h3 className="text-sm font-bold text-white">Verifying Magic Access Link</h3>
+            <p className="text-xs text-slate-400">Resolving institution &amp; session context...</p>
           </div>
         </div>
       </main>
     );
   }
 
-  // 2. Invalid or Expired Link (Frosted Glass Card)
+  // 2. Invalid or Expired Link
   if (invalidLink || !institution) {
     return (
-      <main className="bg-[#050811] min-h-screen text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center font-sans relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,_rgba(244,63,94,0.12)_0%,_transparent_70%)]" />
-        <div className="w-full p-8 rounded-3xl bg-slate-900/40 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] text-center space-y-5 relative z-10">
-          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 w-fit mx-auto shadow-inner">
+      <main className="bg-[#110B24] min-h-screen text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center font-sans relative overflow-hidden">
+        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-72 h-72 bg-rose-600/15 rounded-full blur-[100px] pointer-events-none" />
+        <div className="w-full p-8 rounded-3xl bg-[#1D143D]/70 backdrop-blur-2xl border border-rose-500/20 shadow-[0_12px_40px_rgba(0,0,0,0.4)] text-center space-y-5 relative z-10">
+          <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/25 text-rose-400 w-fit mx-auto shadow-inner">
             <AlertOctagon className="w-8 h-8" />
           </div>
           <div className="space-y-1.5">
-            <h2 className="text-lg font-bold text-slate-100">Invalid or Expired Link</h2>
-            <p className="text-xs text-slate-400 leading-relaxed px-2">
+            <h2 className="text-lg font-bold text-white">Invalid or Expired Link</h2>
+            <p className="text-xs text-slate-300 leading-relaxed px-2">
               This assembly verification link is invalid, expired, or revoked. Please contact your regional administrator to issue a new verification link.
             </p>
           </div>
@@ -334,36 +349,35 @@ export default function MagicLinkAccessPage() {
     );
   }
 
-  // 3. Frosted Glass Success State Screen
+  // 3. Success State Screen
   if (isSubmitted || alreadySubmittedToday) {
     return (
-      <main className="bg-[#050811] min-h-screen text-slate-100 p-4 md:p-6 max-w-md mx-auto flex items-center justify-center font-sans relative overflow-hidden">
-        {/* Ambient Glow */}
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,_rgba(16,185,129,0.18)_0%,_transparent_75%)]" />
-        
-        <div className="w-full p-7 rounded-3xl bg-slate-900/40 backdrop-blur-2xl border border-emerald-500/30 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] text-center space-y-6 relative z-10">
+      <main className="bg-[#110B24] min-h-screen text-slate-100 p-4 md:p-6 max-w-md mx-auto flex items-center justify-center font-sans relative overflow-hidden">
+        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-80 h-80 bg-emerald-500/15 rounded-full blur-[110px] pointer-events-none" />
+
+        <div className="w-full p-7 rounded-3xl bg-[#1D143D]/70 backdrop-blur-2xl border border-emerald-500/30 shadow-[0_12px_40px_rgba(0,0,0,0.4)] text-center space-y-6 relative z-10">
           {/* Glowing Emerald Badge */}
-          <div className="p-4 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 w-fit mx-auto shadow-[0_0_24px_rgba(16,185,129,0.2)]">
-            <CheckCircle className="w-10 h-10" />
+          <div className="p-4 rounded-3xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 w-fit mx-auto shadow-[0_0_24px_rgba(16,185,129,0.25)]">
+            <CheckCircle2 className="w-10 h-10" />
           </div>
 
           <div className="space-y-2">
-            <span className="text-[10px] font-bold tracking-widest text-emerald-400 uppercase bg-emerald-500/10 px-3.5 py-1 rounded-full border border-emerald-500/20 inline-block">
+            <span className="text-[10px] font-bold tracking-widest text-emerald-300 uppercase bg-emerald-500/15 px-3.5 py-1 rounded-full border border-emerald-500/30 inline-block">
               Assembly Verified
             </span>
             <h2 className="text-xl font-extrabold text-white leading-snug tracking-tight">
               Today's Assembly Logged Successfully
             </h2>
-            <p className="text-xs text-slate-300/80 leading-relaxed">
+            <p className="text-xs text-slate-300 leading-relaxed">
               Your verification photo has been recorded. Session securely closed.
             </p>
           </div>
 
           {/* College Metadata Pill */}
-          <div className="p-4 rounded-2xl bg-slate-950/50 backdrop-blur-md border border-white/10 text-left space-y-3 shadow-inner">
+          <div className="p-4 rounded-2xl bg-[#140C2E]/80 border border-white/[0.08] text-left space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Institution Campus</span>
-              <span className="px-3 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-mono text-xs font-bold tracking-wider">
+              <span className="px-3 py-1 rounded-lg bg-fuchsia-500/15 border border-fuchsia-500/30 text-fuchsia-300 font-mono text-xs font-bold tracking-wider">
                 {institution.code}
               </span>
             </div>
@@ -371,16 +385,16 @@ export default function MagicLinkAccessPage() {
               {institution.name}
             </h3>
             {submissionTimeFormatted && (
-              <div className="pt-2.5 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
+              <div className="pt-2.5 border-t border-white/[0.08] flex items-center justify-between text-xs text-slate-400">
                 <span className="flex items-center gap-1.5 text-slate-300">
                   <Clock className="w-3.5 h-3.5 text-emerald-400" /> Logged Timestamp:
                 </span>
-                <span className="font-semibold text-white">{submissionTimeFormatted}</span>
+                <span className="font-bold text-white">{submissionTimeFormatted}</span>
               </div>
             )}
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-[11px] text-slate-300 flex items-center justify-center gap-2 backdrop-blur-md">
+          <div className="p-3.5 rounded-2xl bg-[#170E33] border border-white/[0.08] text-[11px] text-slate-300 flex items-center justify-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>Government of Sindh • College Education Department</span>
           </div>
@@ -389,10 +403,38 @@ export default function MagicLinkAccessPage() {
     );
   }
 
+  // 4. Cutoff Closed Screen
+  if (windowClosed) {
+    return (
+      <main className="bg-[#110B24] min-h-screen text-slate-100 p-4 md:p-6 max-w-md mx-auto flex items-center justify-center font-sans relative overflow-hidden">
+        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-72 h-72 bg-amber-500/15 rounded-full blur-[100px] pointer-events-none" />
+        <div className="w-full p-7 rounded-3xl bg-[#1D143D]/70 backdrop-blur-2xl border border-amber-500/25 shadow-[0_12px_40px_rgba(0,0,0,0.4)] text-center space-y-6 relative z-10">
+          <div className="p-4 rounded-3xl bg-amber-500/15 border border-amber-500/30 text-amber-400 w-fit mx-auto">
+            <Clock className="w-10 h-10" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-lg font-bold text-white">
+              Daily Submission Window Closed
+            </h2>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Assembly photos for <span className="font-semibold text-fuchsia-300">{institution.code}</span> can only be submitted before 3:00 PM Pakistan Standard Time.
+            </p>
+          </div>
+          <div className="p-4 rounded-2xl bg-[#140C2E]/80 border border-white/[0.08] text-left">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Institution Campus</p>
+            <h3 className="mt-1 text-sm font-bold text-white">{institution.name}</h3>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // 5. Active Camera & Submit Form
   return (
-    <main className="bg-[#050811] min-h-screen text-slate-100 p-4 md:p-6 max-w-md mx-auto space-y-5 font-sans flex flex-col justify-center relative overflow-hidden">
-      {/* Ambient Mesh Gradient Glow */}
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,_rgba(99,102,241,0.15)_0%,_transparent_70%)]" />
+    <main className="bg-[#110B24] min-h-screen text-slate-100 p-4 md:p-6 max-w-md mx-auto space-y-5 font-sans flex flex-col justify-center relative overflow-hidden">
+      {/* Ambient Radial Mesh Glow */}
+      <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-80 h-80 bg-fuchsia-600/15 rounded-full blur-[110px] pointer-events-none" />
+      <div className="absolute bottom-10 right-0 w-64 h-64 bg-indigo-600/15 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Hidden Native Camera File Input */}
       <input
@@ -408,29 +450,29 @@ export default function MagicLinkAccessPage() {
       <header className="space-y-3 relative z-10">
         <div className="flex items-center justify-between pb-1">
           <div className="space-y-0.5">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-400 block">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-fuchsia-400 block">
               Government of Sindh
             </span>
-            <h1 className="text-base font-bold text-slate-100 tracking-tight">
+            <h1 className="text-base font-bold text-white tracking-tight">
               College Education Department
             </h1>
           </div>
-          <div className="p-2.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.15)]">
+          <div className="p-2.5 rounded-2xl bg-fuchsia-500/15 border border-fuchsia-500/25 text-fuchsia-400 shadow-[0_0_15px_rgba(217,70,239,0.15)]">
             <Award className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Institution Glass Banner */}
-        <div className="p-4 rounded-3xl bg-slate-900/40 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] space-y-2">
+        {/* Institution Banner Card */}
+        <div className="p-4 rounded-3xl bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.4)] space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
               College Campus
             </span>
-            <span className="px-3 py-1 rounded-xl bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 font-mono text-xs font-bold tracking-wider">
+            <span className="px-3 py-1 rounded-xl bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/30 font-mono text-xs font-bold tracking-wider">
               {institution.code}
             </span>
           </div>
-          <h2 className="text-base md:text-lg font-bold text-white leading-snug break-words">
+          <h2 className="text-base font-bold text-white leading-snug break-words">
             {institution.name}
           </h2>
         </div>
@@ -438,20 +480,20 @@ export default function MagicLinkAccessPage() {
 
       {/* Error Alert Banner */}
       {errorMessage && (
-        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-3 backdrop-blur-xl shadow-lg relative z-10">
+        <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/25 text-rose-300 text-xs flex items-center gap-3 backdrop-blur-xl shadow-lg relative z-10">
           <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
           <span>{errorMessage}</span>
         </div>
       )}
 
       {/* Camera Capture & Preview Container */}
-      <section className="p-5 rounded-3xl bg-slate-900/40 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] space-y-4 text-center relative z-10">
+      <section className="p-5 rounded-3xl bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.4)] space-y-4 text-center relative z-10">
         {optimizing && (
           <div className="py-12 space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto">
-              <Loader2 className="w-6 h-6 text-indigo-400 animate-spin" />
+            <div className="w-12 h-12 rounded-2xl bg-fuchsia-500/15 border border-fuchsia-500/25 flex items-center justify-center mx-auto">
+              <Loader2 className="w-6 h-6 text-fuchsia-400 animate-spin" />
             </div>
-            <p className="text-xs font-semibold text-slate-200">Optimizing photo...</p>
+            <p className="text-xs font-semibold text-white">Optimizing photo...</p>
             <p className="text-[10px] text-slate-400">Compressing image for fast mobile upload</p>
           </div>
         )}
@@ -459,28 +501,28 @@ export default function MagicLinkAccessPage() {
         {!compressedImage && !optimizing && (
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-white/10 hover:border-indigo-500/50 transition-all rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer group bg-slate-950/30 backdrop-blur-md space-y-3"
+            className="border-2 border-dashed border-fuchsia-500/30 hover:border-fuchsia-500/60 transition-all rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer group bg-[#160E33]/60 backdrop-blur-md space-y-3"
           >
-            <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 group-hover:scale-105 transition-transform shadow-[0_0_20px_rgba(99,102,241,0.15)]">
+            <div className="p-4 rounded-2xl bg-fuchsia-500/15 border border-fuchsia-500/25 text-fuchsia-400 group-hover:scale-105 transition-transform shadow-[0_0_20px_rgba(217,70,239,0.2)]">
               <Camera className="w-8 h-8" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-100">Tap to Snap Assembly Photo</p>
+              <p className="text-sm font-bold text-white">Tap to Snap Assembly Photo</p>
               <p className="text-xs text-slate-400 mt-1">Triggers native rear camera prompt</p>
             </div>
           </div>
         )}
 
-        {/* Captured Image Preview Box & Frosted Action Buttons */}
+        {/* Captured Image Preview Box & Action Buttons */}
         {compressedImage && !optimizing && (
           <div className="space-y-4">
-            <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-slate-950/80 shadow-2xl aspect-[4/3] backdrop-blur-md">
+            <div className="relative rounded-2xl overflow-hidden border border-white/[0.08] bg-black shadow-2xl aspect-[4/3]">
               <img
                 src={compressedImage.previewUrl}
                 alt="Captured assembly verification preview"
                 className="w-full h-full object-cover"
               />
-              <div className="absolute top-3 right-3 px-3 py-1 rounded-xl bg-slate-950/80 backdrop-blur-md border border-white/10 text-[10px] text-indigo-300 font-mono font-bold shadow-md">
+              <div className="absolute top-3 right-3 px-3 py-1 rounded-xl bg-[#140C2E]/90 backdrop-blur-md border border-white/10 text-[10px] text-fuchsia-300 font-mono font-bold shadow-md">
                 {compressedImage.sizeKB} KB Compressed
               </div>
             </div>
@@ -491,7 +533,7 @@ export default function MagicLinkAccessPage() {
                 type="button"
                 onClick={triggerRetake}
                 disabled={uploading}
-                className="py-3.5 px-4 rounded-2xl font-semibold bg-white/5 hover:bg-white/10 active:scale-[0.98] disabled:opacity-50 text-slate-200 flex items-center justify-center gap-2 text-xs transition-all border border-white/10 backdrop-blur-md shadow-md"
+                className="py-3.5 px-4 rounded-2xl font-semibold bg-[#261A4E] hover:bg-[#322366] active:scale-[0.98] disabled:opacity-50 text-slate-200 flex items-center justify-center gap-2 text-xs transition-all border border-white/[0.08] shadow-md cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4" />
                 Retake Photo
@@ -501,7 +543,7 @@ export default function MagicLinkAccessPage() {
                 type="button"
                 onClick={handleSubmitPhoto}
                 disabled={uploading}
-                className="py-3.5 px-4 rounded-2xl font-bold bg-gradient-to-r from-indigo-500 to-blue-600 shadow-lg shadow-indigo-500/25 hover:opacity-95 active:scale-[0.98] disabled:opacity-50 text-white flex items-center justify-center gap-2 text-xs transition-all"
+                className="py-3.5 px-4 rounded-2xl font-bold bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:from-fuchsia-500 hover:to-indigo-500 shadow-lg shadow-fuchsia-600/25 active:scale-[0.98] disabled:opacity-50 text-white flex items-center justify-center gap-2 text-xs transition-all cursor-pointer"
               >
                 {uploading ? (
                   <>
