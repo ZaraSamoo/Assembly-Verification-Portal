@@ -145,13 +145,20 @@ export default function MagicLinkAccessPage() {
 
       setInstitution(data as Institution);
 
-      // Check if submission already exists today
-      const todayDate = new Date().toISOString().split('T')[0];
+      // 1. Determine submission_date in Asia/Karachi timezone (YYYY-MM-DD)
+      const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date());
+
+      // 2. Determine cut-off (10:30 AM PKT)
+      const localTimeStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Karachi', hour12: false });
+      const [hour, min] = localTimeStr.split(':').map(Number);
+      const isLate = hour > 10 || (hour === 10 && min > 30);
+
+      // 3. Check if submission already exists today
       const querySub: any = supabase.from('assembly_submissions');
       const { data: existingSub } = await querySub
         .select('id, submission_time, created_at')
         .eq('institution_id', data.id)
-        .eq('submission_date', todayDate)
+        .eq('submission_date', localDate)
         .maybeSingle();
 
       if (existingSub) {
@@ -159,7 +166,7 @@ export default function MagicLinkAccessPage() {
         const subTime = existingSub.submission_time || existingSub.created_at;
         if (subTime) {
           setSubmissionTimeFormatted(
-            new Date(subTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+            new Date(subTime).toLocaleTimeString('en-US', { timeZone: 'Asia/Karachi', hour: '2-digit', minute: '2-digit', hour12: true })
           );
         }
       }
@@ -225,11 +232,17 @@ export default function MagicLinkAccessPage() {
 
     try {
       const supabase = createClient();
-      const todayDate = new Date().toISOString().split('T')[0];
-      const now = new Date();
-      const fileName = `${institution.code}_${todayDate}_${Date.now()}.jpg`;
+      
+      // 1. Calculate PKT local date, cutoff, and iso timestamp
+      const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date());
+      const localTimeStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Karachi', hour12: false });
+      const [hour, min] = localTimeStr.split(':').map(Number);
+      const isLate = hour > 10 || (hour === 10 && min > 30);
+      const isoSubmissionTime = new Date().toISOString();
 
-      // 1. Upload to Supabase Storage bucket 'assembly-photos'
+      const fileName = `${institution.code}_${localDate}_${Date.now()}.jpg`;
+
+      // 2. Upload to Supabase Storage bucket 'assembly-photos'
       const { error: storageError }: any = await supabase.storage
         .from('assembly-photos')
         .upload(fileName, compressedImage.file, {
@@ -241,26 +254,21 @@ export default function MagicLinkAccessPage() {
         throw new Error(`Storage upload failed: ${storageError.message}`);
       }
 
-      // 2. Fetch public URL
+      // 3. Fetch public URL
       const { data: urlData } = supabase.storage
         .from('assembly-photos')
         .getPublicUrl(fileName);
 
       const publicUrl = urlData.publicUrl;
 
-      // 3. Cut-off time check (10:30 AM)
-      const cutoff = new Date();
-      cutoff.setHours(10, 30, 0, 0);
-      const is_late = now > cutoff;
-
-      // 4. Insert into assembly_submissions table matching exact schema
+      // 4. Insert into assembly_submissions table with exact PKT requirements
       const queryInsert: any = supabase.from('assembly_submissions');
       const { error: insertError } = await queryInsert.insert({
         institution_id: institution.id,
-        submission_date: todayDate,
-        submission_time: now.toISOString(),
+        submission_date: localDate,
+        submission_time: isoSubmissionTime,
         image_url: publicUrl,
-        is_late,
+        is_late: isLate,
         status: 'submitted',
         remarks: 'Submitted via Principal Magic Link',
       });
@@ -269,7 +277,12 @@ export default function MagicLinkAccessPage() {
         throw new Error(`Database insert failed: ${insertError.message}`);
       }
 
-      const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+      const formattedTime = new Date().toLocaleTimeString('en-US', {
+        timeZone: 'Asia/Karachi',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
       setSubmissionTimeFormatted(formattedTime);
       setCompressedImage(null);
       setIsSubmitted(true);

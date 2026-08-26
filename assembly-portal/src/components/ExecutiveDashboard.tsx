@@ -55,7 +55,7 @@ const CUTOFF_LABEL = '10:30 AM';
 const GLASS = 'bg-slate-900/50 backdrop-blur-xl border border-white/10 rounded-3xl shadow-xl';
 
 function todayISO() {
-  return format(new Date(), 'yyyy-MM-dd');
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date());
 }
 
 function asId(value: number | string) {
@@ -99,9 +99,26 @@ function formatDateTime(dateStr: string | null, timeStr: string | null) {
     return dateStr || '—';
   }
   if (!timeStr && dateStr && !dateStr.includes('T')) {
-    return format(parsed, 'MMM d, yyyy');
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Karachi',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(parsed);
   }
-  return format(parsed, 'MMM d, yyyy • hh:mm a');
+  const dateFormatted = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Karachi',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(parsed);
+  const timeFormatted = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Karachi',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).format(parsed);
+  return `${dateFormatted} • ${timeFormatted} PKT`;
 }
 
 function formatTimeOnly(timeStr: string | null, createdAt: string | null) {
@@ -109,14 +126,21 @@ function formatTimeOnly(timeStr: string | null, createdAt: string | null) {
   if (!iso) return '';
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return '';
-  return format(parsed, 'hh:mm a');
+  return `${new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Karachi',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).format(parsed)} PKT`;
 }
 
 function isAfterCutoff(iso: string | null) {
   if (!iso) return false;
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return false;
-  return parsed.getHours() > 10 || (parsed.getHours() === 10 && parsed.getMinutes() >= 30);
+  const timeStr = parsed.toLocaleTimeString('en-GB', { timeZone: 'Asia/Karachi', hour12: false });
+  const [hour, min] = timeStr.split(':').map(Number);
+  return hour > 10 || (hour === 10 && min > 30);
 }
 
 function resolveStatus(submission: Submission | null): DisplayStatus {
@@ -410,7 +434,16 @@ export default function ExecutiveDashboard() {
           <div className="flex flex-col gap-4 border-b border-white/10 p-4 md:flex-row md:items-center md:justify-between md:p-5">
             <div>
               <h2 className="text-lg font-semibold text-white">Live Verification Feed</h2>
-              <p className="text-xs text-slate-400">{filteredRows.length} colleges in current view</p>
+              <p className="text-xs text-slate-400">
+                {new Intl.DateTimeFormat('en-GB', {
+                  timeZone: 'Asia/Karachi',
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                }).format(new Date(selectedDate.includes('T') ? selectedDate : `${selectedDate}T00:00:00`))}{' '}
+                • {filteredRows.length} colleges in current view
+              </p>
             </div>
             <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:items-center">
               <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/60 px-3.5 py-2">
@@ -495,7 +528,12 @@ export default function ExecutiveDashboard() {
                       <td className="px-5 py-4 text-slate-300">
                         {row.submission
                           ? formatDateTime(row.submission.submission_date, row.submission.submission_time || row.submission.created_at)
-                          : format(new Date(`${selectedDate}T00:00:00`), 'MMM d, yyyy')}
+                          : new Intl.DateTimeFormat('en-US', {
+                              timeZone: 'Asia/Karachi',
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            }).format(new Date(`${selectedDate}T00:00:00`))}
                       </td>
                       <td className="px-5 py-4">
                         {row.submission?.image_url ? (
