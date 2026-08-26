@@ -3,8 +3,9 @@
 @tailwind utilities;
 
 :root {
-  --background: #0B101E;
-  --foreground: #e8eef9;
+  --background: #110B24;
+  --foreground: #f8fafc;
+  color-scheme: dark;
 }
 
 body {
@@ -12,9 +13,31 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   letter-spacing: -0.011em;
+  margin: 0;
+  padding: 0;
 }
 
+/* Fuchsia/Violet tinted calendar picker icon */
 input[type='date']::-webkit-calendar-picker-indicator {
-  filter: invert(0.72) sepia(0.4) saturate(2) hue-rotate(190deg);
+  filter: invert(0.8) sepia(0.6) saturate(3) hue-rotate(260deg);
   cursor: pointer;
+}
+
+/* Custom smooth dark scrollbar for the college feed */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #110B24;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2E245C;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #E056FD;
 }

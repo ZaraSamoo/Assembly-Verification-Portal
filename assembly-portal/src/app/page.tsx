@@ -10,12 +10,10 @@ import {
   CheckCircle2,
   Clock,
   Download,
-  FileText,
   ImageOff,
   Loader2,
   Search,
   ShieldCheck,
-  Sparkles,
   TrendingUp,
   X,
 } from 'lucide-react';
@@ -47,9 +45,6 @@ interface CollegeRow {
   submission: Submission | null;
   displayStatus: DisplayStatus;
 }
-
-const GLASS_CARD =
-  'bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)]';
 
 function karachiISO(value?: Date) {
   return (value ?? new Date()).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
@@ -119,7 +114,7 @@ function resolveStatus(submission: Submission | null, absence: 'pending' | 'miss
 
 function statusCopy(status: DisplayStatus) {
   if (status === 'pending') return 'Pending';
-  if (status === 'missing') return 'Pending / Missing';
+  if (status === 'missing') return 'Missing';
   return 'Verified';
 }
 
@@ -359,7 +354,7 @@ export default function Home() {
       />
 
       <div className="relative z-10 space-y-6">
-        {/* 3. Header & Controls Layout */}
+        {/* Top Header Bar */}
         <header className="bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -404,7 +399,7 @@ export default function Home() {
           </div>
         </header>
 
-        {/* 2. Fix 4-Column Grid: Responsive 4-column grid */}
+        {/* 4-Column KPI Grid */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Card 1: Total Colleges (Coral Accent) */}
           <div className="bg-gradient-to-br from-[#FF6B6B]/15 via-[#231849]/60 to-[#191136]/90 border border-[#FF6B6B]/25 rounded-3xl p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
@@ -423,7 +418,10 @@ export default function Home() {
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-wider text-[#E056FD]">Submitted Today</p>
               <p className="text-3xl font-extrabold text-emerald-300 leading-tight">
-                {metrics.submitted} <span className="text-xs font-bold text-emerald-400/80 font-normal">({metrics.submitted} ({metrics.compliance.toFixed(0)}%))</span>
+                {metrics.submitted}{' '}
+                <span className="text-xs font-bold text-emerald-400/80 font-normal">
+                  ({metrics.compliance.toFixed(0)}%)
+                </span>
               </p>
               <p className="text-[11px] text-slate-300/70 leading-relaxed">Verified Logged Photos</p>
             </div>
@@ -444,7 +442,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Card 4: Compliance Rate (Cyan Accent with Smooth Progress Bar) */}
+          {/* Card 4: Compliance Rate (Cyan Accent) */}
           <div className="rounded-3xl bg-gradient-to-br from-[#00d2d3]/15 via-[#231849]/60 to-[#191136]/90 border border-[#00d2d3]/25 p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
             <div className="w-full space-y-2">
               <div className="flex items-center justify-between">
@@ -463,9 +461,9 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ANALYTICS & SUBMISSIONS SECTION (2-Column Asymmetric Grid) */}
+        {/* 2-Column Analytics Section */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Daily Compliance Breakdown Bar (2 Columns) */}
+          {/* Left: 7-Day Compliance Breakdown (2 Columns) */}
           <article className="lg:col-span-2 bg-[#1D143D]/70 border border-white/[0.08] rounded-3xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col justify-between space-y-4">
             <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
               <div>
@@ -480,7 +478,7 @@ export default function Home() {
               </span>
             </div>
 
-            {/* Strict Fixed-Height Area Spline Chart Container */}
+            {/* Fixed-Height Area Spline Chart Container */}
             <div className="h-56 w-full relative">
               <svg viewBox="0 0 500 180" className="w-full h-full overflow-visible" preserveAspectRatio="none">
                 <defs>
@@ -532,7 +530,7 @@ export default function Home() {
             </div>
           </article>
 
-          {/* Right: Policy & Cutoff Card with clear window status (1 Column) */}
+          {/* Right: Policy & Cutoff Card (1 Column) */}
           <article className="lg:col-span-1 bg-[#1D143D]/70 border border-white/[0.08] rounded-3xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col justify-between space-y-4">
             <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
