@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
   AlertTriangle,
@@ -13,7 +12,6 @@ import {
   Flag,
   ImageOff,
   Loader2,
-  LogOut,
   Radio,
   Search,
   Timer,
@@ -22,7 +20,6 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 
 type StatusTab = 'all' | 'submitted' | 'pending' | 'late';
 type DisplayStatus = 'submitted' | 'verified' | 'late' | 'missing' | 'flagged';
@@ -74,7 +71,24 @@ function regionName(institution: Institution) {
 
 function parseDatePart(value: string | null | undefined) {
   if (!value) return null;
-  return value.split('T')[0];
+  return String(value).split('T')[0];
+}
+
+function normalizeSubmission(item: Record<string, unknown>): Submission {
+  const submissionDate = (item.submission_date as string | null) ?? null;
+  const submissionTime = (item.submission_time as string | null) ?? (item.submitted_at as string | null) ?? null;
+  const createdAt = (item.created_at as string) || '';
+  return {
+    id: item.id as number | string,
+    institution_id: (item.institution_id ?? item.campus_id) as number | string,
+    submission_date: submissionDate || parseDatePart(submissionTime) || parseDatePart(createdAt),
+    submission_time: submissionTime || createdAt,
+    image_url: ((item.image_url as string | null) ?? (item.photo_url as string | null)) || null,
+    remarks: ((item.remarks as string | null) ?? (item.notes as string | null)) || null,
+    status: String(item.status || 'submitted'),
+    is_late: Boolean(item.is_late),
+    created_at: createdAt,
+  };
 }
 
 function formatDateTime(dateStr: string | null, timeStr: string | null) {
@@ -159,7 +173,6 @@ function csvEscape(value: string) {
 }
 
 export default function ExecutiveDashboard() {
-  const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(todayISO);
   const [statusTab, setStatusTab] = useState<StatusTab>('all');
   const [search, setSearch] = useState('');
@@ -172,85 +185,55 @@ export default function ExecutiveDashboard() {
   const [zoom, setZoom] = useState(1);
   const [actionBusy, setActionBusy] = useState(false);
 
-  const loadData = useCallback(async (date: string) => {
-    setLoading(true);
-    setErrorMessage(null);
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setErrorMessage(null);
+    }
     try {
-      const supabase = createClient() as any;
+      const response = await fetch('/api/monitoring', { cache: 'no-store' });
+      const payload = (await response.json()) as {
+        institutions?: Institution[];
+        submissions?: Record<string, unknown>[];
+        error?: string;
+      };
 
-      const { data: instData, error: instError } = await supabase
-        .from('institutions')
-        .select('id, name, code, region_id, is_active, regions ( id, name )')
-        .eq('is_active', true)
-        .order('code', { ascending: true });
-
-      if (instError) {
-        const fallback = await supabase
-          .from('institutions')
-          .select('id, name, code, region_id, is_active')
-          .eq('is_active', true)
-          .order('code', { ascending: true });
-        if (fallback.error) throw fallback.error;
-        setInstitutions((fallback.data || []) as Institution[]);
-      } else {
-        setInstitutions((instData || []) as Institution[]);
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to load monitoring data.');
       }
 
-      const { data: subData, error: subError } = await supabase
-        .from('assembly_submissions')
-        .select('id, institution_id, submission_date, submission_time, image_url, remarks, status, is_late, created_at')
-        .eq('submission_date', date)
-        .order('submission_time', { ascending: false });
-
-      if (subError) {
-        const fallback = await supabase
-          .from('assembly_submissions')
-          .select('*')
-          .order('created_at', { ascending: false });
-        if (fallback.error) throw fallback.error;
-        const filtered = ((fallback.data || []) as Submission[]).filter((row) => {
-          const rowDate = parseDatePart(row.submission_date) || parseDatePart(row.submission_time) || parseDatePart(row.created_at);
-          return rowDate === date;
-        });
-        setSubmissions(filtered);
-      } else {
-        setSubmissions((subData || []) as Submission[]);
-      }
+      setInstitutions(payload.institutions || []);
+      setSubmissions((payload.submissions || []).map(normalizeSubmission));
+      setLive(true);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load monitoring data.';
       setErrorMessage(message);
+      setLive(false);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadData(selectedDate);
-  }, [loadData, selectedDate]);
+    void loadData(false);
+  }, [loadData]);
 
   useEffect(() => {
-    const supabase = createClient() as any;
-    const channel = supabase
-      .channel('executive-assembly-live')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'assembly_submissions' },
-        () => {
-          void loadData(selectedDate);
-        }
-      )
-      .subscribe((status: string) => {
-        setLive(status === 'SUBSCRIBED');
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [loadData, selectedDate]);
+    const timer = window.setInterval(() => {
+      void loadData(true);
+    }, 12000);
+    return () => window.clearInterval(timer);
+  }, [loadData]);
 
   const rows = useMemo<CollegeRow[]>(() => {
+    const activeColleges = institutions.filter((institution) => institution.is_active !== false);
     const latestByInstitution = new Map<string, Submission>();
     for (const submission of submissions) {
+      const rowDate =
+        parseDatePart(submission.submission_date) ||
+        parseDatePart(submission.submission_time) ||
+        parseDatePart(submission.created_at);
+      if (rowDate !== selectedDate) continue;
       const key = asId(submission.institution_id);
       const existing = latestByInstitution.get(key);
       if (!existing) {
@@ -262,7 +245,7 @@ export default function ExecutiveDashboard() {
       if (nextTs > prevTs) latestByInstitution.set(key, submission);
     }
 
-    return institutions.map((institution) => {
+    return activeColleges.map((institution) => {
       const submission = latestByInstitution.get(asId(institution.id)) ?? null;
       return {
         institution,
@@ -270,7 +253,7 @@ export default function ExecutiveDashboard() {
         displayStatus: resolveStatus(submission),
       };
     });
-  }, [institutions, submissions]);
+  }, [institutions, submissions, selectedDate]);
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -290,17 +273,9 @@ export default function ExecutiveDashboard() {
     const submitted = rows.filter((row) => row.displayStatus !== 'missing').length;
     const pending = total - submitted;
     const late = rows.filter((row) => row.displayStatus === 'late').length;
-    const onTime = submitted - late;
     const compliance = total === 0 ? 0 : (submitted / total) * 100;
-    return { total, submitted, pending, late, onTime, compliance };
+    return { total, submitted, pending, late, compliance };
   }, [rows]);
-
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push('/');
-    router.refresh();
-  };
 
   const exportCsv = () => {
     const headers = [
@@ -336,10 +311,14 @@ export default function ExecutiveDashboard() {
   const updateStatus = async (submissionId: number | string, nextStatus: 'verified' | 'flagged') => {
     setActionBusy(true);
     try {
-      const supabase = createClient() as any;
-      const { error } = await supabase.from('assembly_submissions').update({ status: nextStatus }).eq('id', submissionId);
-      if (error) {
-        setErrorMessage(error.message);
+      const response = await fetch('/api/monitoring', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: submissionId, status: nextStatus }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setErrorMessage(payload.error || 'Failed to update status.');
         return;
       }
       setSubmissions((prev) => prev.map((item) => (item.id === submissionId ? { ...item, status: nextStatus } : item)));
@@ -364,7 +343,7 @@ export default function ExecutiveDashboard() {
   };
 
   const tabs: { id: StatusTab; label: string }[] = [
-    { id: 'all', label: 'All Colleges' },
+    { id: 'all', label: 'All' },
     { id: 'submitted', label: 'Submitted' },
     { id: 'pending', label: 'Pending / Missing' },
     { id: 'late', label: 'Late' },
@@ -380,62 +359,47 @@ export default function ExecutiveDashboard() {
 
       <div className="relative z-10 mx-auto max-w-7xl space-y-6 p-4 md:p-8">
         <header className={`${GLASS} flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between`}>
-          <div>
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-300">
-              <Radio className={`h-3.5 w-3.5 ${live ? 'text-emerald-400' : 'text-slate-400'}`} />
-              {live ? 'Live tracking' : 'Connecting live feed'}
+          <div className="flex items-start gap-4">
+            <SindhCrest />
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200/90">
+                Government of Sindh
+              </p>
+              <p className="mt-0.5 text-xs text-slate-400">College Education Department</p>
+              <h1 className="mt-2 text-2xl font-bold tracking-tight text-white md:text-3xl">
+                Regional &amp; Finance Monitoring Portal — Daily Assembly Compliance
+              </h1>
+              <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-300">
+                <Radio className={`h-3.5 w-3.5 ${live ? 'text-emerald-400' : 'text-slate-400'}`} />
+                {live ? 'Live tracking' : 'Connecting live feed'}
+              </div>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
-              Regional &amp; Finance Monitoring Portal — Daily Assembly Compliance
-            </h1>
-            <p className="mt-1 text-sm text-slate-400">
-              Real-time attendance analytics, photo inspection, and audit export. Cutoff {CUTOFF_LABEL}.
-            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/60 px-3.5 py-2">
-              <Calendar className="h-4 w-4 text-indigo-300" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(event) => setSelectedDate(event.target.value)}
-                className="bg-transparent text-sm text-slate-200 outline-none"
-                aria-label="Filter by submission date"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={exportCsv}
-              className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-600/30 transition hover:bg-indigo-500"
-            >
-              <Download className="h-4 w-4" />
-              Export CSV / Report
-            </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-rose-500/30 hover:text-rose-300"
-            >
-              <LogOut className="h-4 w-4" />
-              Logout
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={exportCsv}
+            className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-600/30 transition hover:bg-indigo-500"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV / Report
+          </button>
         </header>
 
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <MetricCard icon={<Building2 className="h-8 w-8 text-indigo-300" />} label="Total Institutions" value={metrics.total} />
+          <MetricCard icon={<Building2 className="h-8 w-8 text-indigo-300" />} label="Total Colleges" value={metrics.total} />
           <MetricCard icon={<CheckCircle2 className="h-8 w-8 text-emerald-300" />} label="Submitted Today" value={metrics.submitted} accent="text-emerald-300" />
-          <MetricCard icon={<Clock className="h-8 w-8 text-amber-300" />} label="Pending Today" value={metrics.pending} accent="text-amber-300" />
+          <MetricCard icon={<Clock className="h-8 w-8 text-amber-300" />} label="Missing Today" value={metrics.pending} accent="text-amber-300" />
           <MetricCard
-            icon={<Timer className="h-8 w-8 text-sky-300" />}
-            label="On-Time vs Late"
-            value={`${metrics.onTime} / ${metrics.late}`}
-            hint={`On-time · Late after ${CUTOFF_LABEL}`}
+            icon={<Timer className="h-8 w-8 text-rose-300" />}
+            label="Late Submissions"
+            value={metrics.late}
+            accent="text-rose-300"
+            hint={`After ${CUTOFF_LABEL} cutoff`}
           />
           <MetricCard
             icon={<TrendingUp className="h-8 w-8 text-sky-300" />}
-            label="Overall Compliance"
+            label="Compliance Rate"
             value={`${metrics.compliance.toFixed(1)}%`}
             accent="text-sky-300"
             hint={`${metrics.submitted} of ${metrics.total} colleges`}
@@ -449,6 +413,16 @@ export default function ExecutiveDashboard() {
               <p className="text-xs text-slate-400">{filteredRows.length} colleges in current view</p>
             </div>
             <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:items-center">
+              <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/60 px-3.5 py-2">
+                <Calendar className="h-4 w-4 text-indigo-300" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(event) => setSelectedDate(event.target.value)}
+                  className="bg-transparent text-sm text-slate-200 outline-none"
+                  aria-label="Filter by submission date"
+                />
+              </label>
               <div className="flex flex-wrap gap-2">
                 {tabs.map((tab) => (
                   <button
@@ -495,7 +469,8 @@ export default function ExecutiveDashboard() {
               <table className="w-full min-w-[880px] text-left">
                 <thead>
                   <tr className="border-b border-white/10 text-[11px] uppercase tracking-wider text-slate-400">
-                    <th className="px-5 py-3 font-semibold">College</th>
+                    <th className="px-5 py-3 font-semibold">College Code</th>
+                    <th className="px-5 py-3 font-semibold">Institution Name</th>
                     <th className="px-5 py-3 font-semibold">Status</th>
                     <th className="px-5 py-3 font-semibold">Date &amp; Time</th>
                     <th className="px-5 py-3 font-semibold">Photo</th>
@@ -505,9 +480,9 @@ export default function ExecutiveDashboard() {
                 <tbody className="divide-y divide-white/5 text-sm">
                   {filteredRows.map((row) => (
                     <tr key={asId(row.institution.id)} className="transition hover:bg-white/5">
+                      <td className="px-5 py-4 font-mono text-sm font-semibold text-indigo-300">{row.institution.code}</td>
                       <td className="px-5 py-4">
                         <p className="font-semibold text-slate-100">{row.institution.name}</p>
-                        <p className="mt-0.5 font-mono text-xs text-indigo-300">{row.institution.code}</p>
                         {regionName(row.institution) && (
                           <p className="mt-1 text-[11px] text-slate-500">{regionName(row.institution)}</p>
                         )}
@@ -652,6 +627,26 @@ export default function ExecutiveDashboard() {
         </div>
       )}
     </main>
+  );
+}
+
+function SindhCrest() {
+  return (
+    <div
+      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-amber-300/30 bg-gradient-to-b from-emerald-800/70 to-slate-950 shadow-inner"
+      aria-hidden
+    >
+      <svg viewBox="0 0 48 48" className="h-9 w-9">
+        <path
+          d="M24 4 40 12v12c0 10.5-7.2 17.8-16 20-8.8-2.2-16-9.5-16-20V12L24 4Z"
+          fill="#0f172a"
+          stroke="#fbbf24"
+          strokeWidth="1.6"
+        />
+        <path d="M24 14c3.4 0 6 2.5 6 5.6 0 2.2-1.3 4.1-3.2 5.1L24 36l-2.8-11.3c-1.9-1-3.2-2.9-3.2-5.1C18 16.5 20.6 14 24 14Z" fill="#22c55e" />
+        <circle cx="24" cy="19.2" r="2.1" fill="#fbbf24" />
+      </svg>
+    </div>
   );
 }
 

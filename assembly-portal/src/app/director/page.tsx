@@ -1,7 +1,5 @@
-'use client';
-
-import ExecutiveDashboard from '@/components/ExecutiveDashboard';
+import { redirect } from 'next/navigation';
 
 export default function RegionalDirectorPortal() {
-  return <ExecutiveDashboard />;
+  redirect('/');
 }
