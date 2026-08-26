@@ -8,14 +8,19 @@ import {
   Building2,
   Calendar,
   CheckCircle2,
+  Clock,
   Download,
   FileText,
+  Filter,
   ImageOff,
   LayoutDashboard,
   Loader2,
+  Radio,
   Search,
   Settings,
   ShieldCheck,
+  Sparkles,
+  TrendingUp,
   X,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -47,8 +52,8 @@ interface CollegeRow {
   displayStatus: DisplayStatus;
 }
 
-const GLASS =
-  'bg-[#121829]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)]';
+const GLASS_CARD =
+  'bg-[#231B45]/70 backdrop-blur-xl border border-white/[0.08] rounded-3xl shadow-[0_12px_32px_rgba(0,0,0,0.35)]';
 
 function karachiISO(value?: Date) {
   return (value ?? new Date()).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
@@ -96,7 +101,7 @@ function msUntilCutoff(now = new Date()) {
 }
 
 function formatCountdown(ms: number) {
-  if (ms <= 0) return 'Window closed';
+  if (ms <= 0) return 'Window Closed';
   const total = Math.floor(ms / 1000);
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
@@ -196,7 +201,7 @@ function areaPath(values: number[], width: number, height: number) {
   const step = values.length > 1 ? width / (values.length - 1) : width;
   const points = values.map((value, index) => {
     const x = index * step;
-    const y = height - (value / max) * (height - 16) - 8;
+    const y = height - (value / max) * (height - 20) - 10;
     return { x, y };
   });
   if (!points.length) return { line: '', area: '', points };
@@ -326,6 +331,7 @@ export default function Home() {
       return {
         date,
         submitted: unique.size,
+        missing: registered.length - unique.size,
         label: format(parseISO(date), 'EEE'),
         pct: registered.length === 0 ? 0 : (unique.size / registered.length) * 100,
       };
@@ -333,7 +339,7 @@ export default function Home() {
     return days;
   }, [submissions, selectedDate, registered.length]);
 
-  const chart = areaPath(trend.map((day) => day.submitted), 320, 128);
+  const chart = areaPath(trend.map((day) => day.submitted), 360, 140);
 
   const exportCsv = () => {
     const headers = ['College Code', 'Name', 'Submission Date', 'Submission Time PKT', 'Status', 'Photo URL'];
@@ -366,8 +372,9 @@ export default function Home() {
     second: '2-digit',
     hour12: true,
   });
-  const circumference = 2 * Math.PI * 42;
+  const circumference = 2 * Math.PI * 44;
   const dash = (metrics.compliance / 100) * circumference;
+
   const nav = [
     { label: 'Dashboard', icon: LayoutDashboard, active: true },
     { label: 'Institutions', icon: Building2, active: false },
@@ -377,34 +384,36 @@ export default function Home() {
   ];
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#0B101E] text-slate-100">
+    <main className="relative min-h-screen overflow-hidden bg-[#130E29] text-slate-100 font-sans">
+      {/* Deep Velvet Plum Ambient Radial Mesh Glows */}
       <div
-        className="pointer-events-none absolute inset-0"
+        className="pointer-events-none absolute inset-0 z-0"
         style={{
           backgroundImage:
-            'radial-gradient(circle at 75% 15%, rgba(59, 130, 246, 0.18) 0%, transparent 50%), radial-gradient(circle at 10% 80%, rgba(99, 102, 241, 0.15) 0%, transparent 50%)',
+            'radial-gradient(circle at 80% 10%, rgba(217, 70, 239, 0.14) 0%, transparent 60%), radial-gradient(circle at 15% 90%, rgba(99, 102, 241, 0.15) 0%, transparent 60%)',
         }}
       />
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1440px] gap-5 p-4 md:p-6">
-        <aside className={`${GLASS} hidden w-[248px] shrink-0 flex-col p-4 lg:flex`}>
-          <div className="mb-8 flex items-center gap-3 px-2">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.45)]">
-              <ShieldCheck className="h-5 w-5" />
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1480px] gap-6 p-4 md:p-6">
+        {/* Left Sidebar Navigation Dock */}
+        <aside className={`${GLASS_CARD} hidden w-[256px] shrink-0 flex-col p-5 lg:flex`}>
+          <div className="mb-8 flex items-center gap-3 px-1">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-white shadow-[0_0_24px_rgba(217,70,239,0.35)]">
+              <ShieldCheck className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-300">Sindh ED</p>
-              <p className="text-sm font-semibold leading-tight text-slate-100">Assembly Verification</p>
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-fuchsia-300">Sindh ED</p>
+              <p className="text-xs font-bold leading-tight text-white">Assembly Portal</p>
             </div>
           </div>
-          <nav className="space-y-1.5">
+          <nav className="space-y-2">
             {nav.map((item) => (
               <div
                 key={item.label}
-                className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium ${
+                className={`flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-semibold transition cursor-pointer ${
                   item.active
-                    ? 'border border-blue-500/30 bg-blue-600/30 text-blue-400 shadow-[0_0_20px_rgba(37,99,235,0.18)]'
-                    : 'text-slate-400'
+                    ? 'border border-fuchsia-500/40 bg-fuchsia-600/30 text-fuchsia-200 shadow-[0_0_20px_rgba(217,70,239,0.25)]'
+                    : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
                 }`}
               >
                 <item.icon className="h-4 w-4" />
@@ -414,42 +423,49 @@ export default function Home() {
           </nav>
         </aside>
 
-        <div className="min-w-0 flex-1 space-y-5">
-          <header className={`${GLASS} flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between`}>
-            <p className="text-xs text-slate-400">
-              Home <span className="text-slate-600">/</span> Dashboard <span className="text-slate-600">/</span>{' '}
-              <span className="text-blue-400">Today (PKT)</span>
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="relative min-w-[180px] flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+        {/* Main Content Area */}
+        <div className="min-w-0 flex-1 space-y-6">
+          {/* Top Header & Floating Toolbar */}
+          <header className={`${GLASS_CARD} flex flex-col gap-4 px-6 py-4.5 lg:flex-row lg:items-center lg:justify-between`}>
+            <div className="space-y-1">
+              <p className="text-xs text-slate-400 font-medium">
+                Home <span className="text-slate-600">/</span> Dashboard <span className="text-slate-600">/</span>{' '}
+                <span className="text-fuchsia-300 font-semibold">Today (PKT)</span>
+              </p>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-white via-slate-100 to-fuchsia-300 bg-clip-text text-transparent">
+                Government of Sindh • Education Department
+              </h1>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="relative min-w-[200px] flex-1">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   value={headerSearch}
                   onChange={(event) => setHeaderSearch(event.target.value)}
-                  placeholder="Quick search"
-                  className="h-10 w-full rounded-full border border-white/[0.08] bg-white/[0.03] py-2 pl-9 pr-3 text-sm outline-none placeholder:text-slate-500"
+                  placeholder="Quick search..."
+                  className="h-10 w-full rounded-full border border-white/10 bg-[#20183F]/80 py-2 pl-9.5 pr-4 text-sm text-white placeholder-slate-400 outline-none focus:border-fuchsia-500/50 transition-all"
                 />
               </label>
-              <label className="flex h-10 items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3">
-                <Calendar className="h-4 w-4 text-blue-400" />
+              <label className="flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-[#20183F]/80 px-3.5 text-xs text-slate-200">
+                <Calendar className="h-4 w-4 text-fuchsia-400" />
                 <input
                   type="date"
                   value={selectedDate}
                   onChange={(event) => setSelectedDate(event.target.value)}
-                  className="bg-transparent text-sm outline-none"
+                  className="bg-transparent font-medium outline-none text-white"
                 />
               </label>
-              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-400">
+              <span className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3.5 py-2 text-xs font-semibold text-emerald-300">
                 <span className="relative flex h-2 w-2">
-                  <span className={`absolute inset-0 rounded-full bg-emerald-400 ${live ? 'animate-ping opacity-70' : 'opacity-0'}`} />
+                  <span className={`absolute inset-0 rounded-full bg-emerald-400 ${live ? 'animate-ping opacity-75' : 'opacity-0'}`} />
                   <span className={`relative h-2 w-2 rounded-full ${live ? 'bg-emerald-400' : 'bg-slate-500'}`} />
                 </span>
-                Feed Active
+                Live Feed
               </span>
               <button
                 type="button"
                 onClick={exportCsv}
-                className="inline-flex h-10 items-center gap-2 rounded-full bg-blue-600 px-4 text-sm font-semibold text-white shadow-[0_0_20px_rgba(37,99,235,0.45)] transition hover:bg-blue-500"
+                className="inline-flex h-10 items-center gap-2 rounded-2xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 px-4 text-sm font-semibold text-white shadow-lg shadow-fuchsia-600/25 transition hover:brightness-110 active:scale-[0.98]"
               >
                 <Download className="h-4 w-4" />
                 Export Report
@@ -457,103 +473,175 @@ export default function Home() {
             </div>
           </header>
 
+          {/* Hero Section Title */}
           <section className="px-1">
-            <h1 className="text-3xl font-semibold tracking-tight text-transparent md:text-4xl" style={{ backgroundImage: 'linear-gradient(180deg,#f8fbff 20%,#93c5fd 100%)', WebkitBackgroundClip: 'text' }}>
+            <h1 className="text-3xl font-extrabold tracking-tight md:text-4xl text-white">
               Daily Assembly Verification
             </h1>
-            <p className="mt-2 text-sm text-slate-400">Real-time compliance monitoring for Government Colleges across Sindh.</p>
+            <p className="mt-1 text-sm text-slate-300/80">
+              Real-time compliance monitoring for Government Colleges across Sindh.
+            </p>
           </section>
 
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(280px,0.9fr)]">
-            <section className={`${GLASS} p-4 md:p-5`}>
-              <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
+          {/* Accent KPI Gradient Cards (Top Row) */}
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Card 1: Total Colleges (Coral/Peach Gradient) */}
+            <div className="rounded-3xl bg-gradient-to-br from-[#FF6B6B]/20 via-[#FF8E53]/10 to-transparent border border-[#FF6B6B]/30 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.3)] backdrop-blur-xl flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#FF8E53]">Total Colleges</p>
+                <p className="mt-1.5 text-3xl font-extrabold text-white">{metrics.total}</p>
+                <p className="mt-1 text-[11px] text-slate-300/70">Registered Campuses</p>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF6B6B]/20 text-[#FF6B6B] border border-[#FF6B6B]/40 shadow-inner">
+                <Building2 className="h-6 w-6" />
+              </div>
+            </div>
+
+            {/* Card 2: Submitted Today (Magenta/Fuchsia Gradient) */}
+            <div className="rounded-3xl bg-gradient-to-br from-[#E056FD]/20 via-[#BE2EDD]/10 to-transparent border border-[#E056FD]/30 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.3)] backdrop-blur-xl flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#E056FD]">Submitted Today</p>
+                <p className="mt-1.5 text-3xl font-extrabold text-emerald-300">{metrics.submitted}</p>
+                <p className="mt-1 text-[11px] text-slate-300/70">Photos Verified & Logged</p>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E056FD]/20 text-[#E056FD] border border-[#E056FD]/40 shadow-inner">
+                <CheckCircle2 className="h-6 w-6" />
+              </div>
+            </div>
+
+            {/* Card 3: Pending / Missing (Electric Violet Gradient) */}
+            <div className="rounded-3xl bg-gradient-to-br from-[#6C5CE7]/20 via-[#a29bfe]/10 to-transparent border border-[#6C5CE7]/30 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.3)] backdrop-blur-xl flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#a29bfe]">Pending / Missing</p>
+                <p className="mt-1.5 text-3xl font-extrabold text-amber-300">{metrics.pending}</p>
+                <p className="mt-1 text-[11px] text-slate-300/70">Awaiting Capture</p>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#6C5CE7]/20 text-[#a29bfe] border border-[#6C5CE7]/40 shadow-inner">
+                <Clock className="h-6 w-6" />
+              </div>
+            </div>
+
+            {/* Card 4: Compliance Rate (Emerald Gradient) */}
+            <div className="rounded-3xl bg-gradient-to-br from-emerald-500/20 via-teal-500/10 to-transparent border border-emerald-500/30 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.3)] backdrop-blur-xl flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Compliance Rate</p>
+                <p className="mt-1.5 text-3xl font-extrabold text-white">{metrics.compliance.toFixed(1)}%</p>
+                <p className="mt-1 text-[11px] text-slate-300/70">{metrics.submitted} of {metrics.total} colleges</p>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-inner">
+                <TrendingUp className="h-6 w-6" />
+              </div>
+            </div>
+          </section>
+
+          {/* Main Grid: 2 Columns */}
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.95fr)]">
+            {/* Left Section: Filter Pills & Live Institutional Feed */}
+            <section className={`${GLASS_CARD} p-5 flex flex-col space-y-4`}>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                {/* Filter Pill Tabs */}
                 <div className="flex flex-wrap gap-2">
                   {(
                     [
                       ['all', `All Colleges (${metrics.total})`],
                       ['submitted', `Submitted Today (${metrics.submitted})`],
-                      ['pending', `Not Submitted (${metrics.pending})`],
+                      ['missing', `Pending / Missing (${metrics.pending})`],
                     ] as [StatusTab, string][]
                   ).map(([id, label]) => (
                     <button
                       key={id}
                       type="button"
                       onClick={() => setStatusTab(id)}
-                      className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                      className={`rounded-full px-4 py-2 text-xs font-bold transition-all ${
                         statusTab === id
-                          ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.45)]'
-                          : 'border border-white/[0.08] bg-white/[0.03] text-slate-400 hover:text-slate-200'
+                          ? 'bg-fuchsia-600/30 border border-fuchsia-500/40 text-fuchsia-200 shadow-[0_0_20px_rgba(217,70,239,0.25)]'
+                          : 'border border-white/10 bg-[#20183F]/60 text-slate-400 hover:text-white'
                       }`}
                     >
                       {label}
                     </button>
                   ))}
                 </div>
-                <label className="relative min-w-0 flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+
+                {/* Filter Bar Search Input */}
+                <label className="relative min-w-0 flex-1 lg:max-w-xs">
+                  <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search college name or code (KQ…)"
-                    className="h-10 w-full rounded-full border border-white/[0.08] bg-white/[0.03] py-2 pl-9 pr-3 text-sm outline-none placeholder:text-slate-500"
+                    placeholder="Filter by name or code (KQ...)"
+                    className="h-10 w-full rounded-full border border-white/10 bg-[#20183F]/80 py-2 pl-9.5 pr-4 text-xs text-white placeholder-slate-400 outline-none focus:border-fuchsia-500/50"
                   />
                 </label>
               </div>
 
               {errorMessage && (
-                <div className="mb-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{errorMessage}</div>
+                <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+                  <span>{errorMessage}</span>
+                </div>
               )}
 
               {loading ? (
                 <div className="flex flex-col items-center justify-center gap-3 py-20">
-                  <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
-                  <p className="text-sm text-slate-500">Syncing live submissions…</p>
+                  <Loader2 className="h-8 w-8 animate-spin text-fuchsia-400" />
+                  <p className="text-xs text-slate-400">Syncing live institutional feed...</p>
                 </div>
               ) : filteredRows.length === 0 ? (
-                <div className="py-20 text-center text-sm text-slate-500">No colleges match the current filters.</div>
+                <div className="py-20 text-center text-xs text-slate-400">No colleges match the current search filters.</div>
               ) : (
-                <div className="max-h-[68vh] space-y-2.5 overflow-y-auto pr-1">
+                <div className="max-h-[64vh] space-y-3 overflow-y-auto pr-1">
                   {filteredRows.map((row) => {
-                    const pending = row.displayStatus === 'pending';
+                    const isPending = row.displayStatus === 'pending' || row.displayStatus === 'missing';
                     return (
                       <article
                         key={asId(row.institution.id)}
-                        className="flex items-center gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.03] px-3.5 py-3 transition hover:border-blue-500/20 hover:bg-white/[0.05]"
+                        className="bg-[#1E173E]/60 hover:bg-[#281F52]/80 border border-white/[0.06] hover:border-fuchsia-500/30 rounded-2xl p-4 transition-all duration-200 flex items-center justify-between gap-4"
                       >
-                        <span className="shrink-0 rounded-full border border-blue-500/30 bg-blue-600/20 px-2.5 py-1 font-mono text-[11px] font-semibold text-blue-300 shadow-[0_0_16px_rgba(37,99,235,0.25)]">
-                          {row.institution.code}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-slate-100">{row.institution.name}</p>
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {row.submission
-                              ? karachiClock(row.submission.submission_time || row.submission.created_at)
-                              : 'Awaiting capture'}
-                          </p>
-                        </div>
-                        <span
-                          className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                            pending
-                              ? 'border border-amber-400/20 bg-amber-500/10 text-amber-300'
-                              : 'border border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_14px_rgba(16,185,129,0.2)]'
-                          }`}
-                        >
-                          {pending ? 'Pending / Missing' : row.displayStatus === 'verified' ? 'Verified' : 'Submitted'}
-                        </span>
-                        {row.submission?.image_url ? (
-                          <button
-                            type="button"
-                            onClick={() => setLightboxRow(row)}
-                            className="h-12 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/[0.08]"
-                            aria-label={`Inspect ${row.institution.name}`}
-                          >
-                            <img src={row.submission.image_url} alt="" className="h-full w-full object-cover transition duration-300 hover:scale-110" />
-                          </button>
-                        ) : (
-                          <div className="flex h-12 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/[0.08] text-slate-600">
-                            <ImageOff className="h-4 w-4" />
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          {/* Monospace Code Pill */}
+                          <span className="bg-[#2E245C] text-fuchsia-300 border border-fuchsia-500/20 px-3 py-1 rounded-xl text-xs font-bold font-mono tracking-wider shrink-0 shadow-sm">
+                            {row.institution.code}
+                          </span>
+
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-white truncate">{row.institution.name}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {row.submission
+                                ? `Logged at ${karachiClock(row.submission.submission_time || row.submission.created_at)} PKT`
+                                : 'Awaiting daily assembly capture'}
+                            </p>
                           </div>
-                        )}
+                        </div>
+
+                        <div className="flex items-center gap-3 shrink-0">
+                          {/* Glowing Status Badge */}
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                              isPending
+                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20 shadow-[0_0_14px_rgba(16,185,129,0.2)]'
+                            }`}
+                          >
+                            {isPending ? 'Pending / Missing' : row.displayStatus === 'verified' ? 'Verified' : 'Submitted'}
+                          </span>
+
+                          {/* Clickable Image Thumbnail */}
+                          {row.submission?.image_url ? (
+                            <button
+                              type="button"
+                              onClick={() => setLightboxRow(row)}
+                              className="h-12 w-16 shrink-0 overflow-hidden rounded-xl border border-white/10 hover:border-fuchsia-500/40 transition-all"
+                              aria-label={`Inspect photo for ${row.institution.name}`}
+                            >
+                              <img src={row.submission.image_url} alt="" className="h-full w-full object-cover hover:scale-105 transition-transform" />
+                            </button>
+                          ) : (
+                            <div className="flex h-12 w-16 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-[#120D26]/50 text-slate-500">
+                              <ImageOff className="h-4 w-4" />
+                            </div>
+                          )}
+                        </div>
                       </article>
                     );
                   })}
@@ -561,81 +649,97 @@ export default function Home() {
               )}
             </section>
 
+            {/* Right Section: Analytics Widgets */}
             <aside className="space-y-5">
-              <article className={`${GLASS} p-5`}>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-300">Today’s Executive Summary</p>
-                <div className="mt-5 flex items-center gap-5">
+              {/* Card 1: Executive Summary Gauge */}
+              <article className={`${GLASS_CARD} p-5 space-y-4`}>
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-fuchsia-300">Today's Executive Summary</p>
+                  <Sparkles className="h-4 w-4 text-fuchsia-400" />
+                </div>
+                <div className="flex items-center gap-5 pt-1">
                   <svg viewBox="0 0 108 108" className="h-28 w-28 shrink-0">
-                    <circle cx="54" cy="54" r="42" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10" />
+                    <circle cx="54" cy="54" r="44" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10" />
                     <circle
                       cx="54"
                       cy="54"
-                      r="42"
+                      r="44"
                       fill="none"
-                      stroke="url(#gauge)"
+                      stroke="url(#plumGauge)"
                       strokeWidth="10"
                       strokeLinecap="round"
                       strokeDasharray={`${dash} ${circumference}`}
                       transform="rotate(-90 54 54)"
                     />
                     <defs>
-                      <linearGradient id="gauge" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor="#60a5fa" />
-                        <stop offset="100%" stopColor="#818cf8" />
+                      <linearGradient id="plumGauge" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="#E056FD" />
+                        <stop offset="100%" stopColor="#6C5CE7" />
                       </linearGradient>
                     </defs>
-                    <text x="54" y="52" textAnchor="middle" fill="#f8fafc" fontSize="18" fontWeight="700">
+                    <text x="54" y="52" textAnchor="middle" fill="#ffffff" fontSize="18" fontWeight="800">
                       {metrics.compliance.toFixed(0)}%
                     </text>
-                    <text x="54" y="68" textAnchor="middle" fill="#93c5fd" fontSize="8">
+                    <text x="54" y="68" textAnchor="middle" fill="#f0abfc" fontSize="8" fontWeight="600">
                       compliance
                     </text>
                   </svg>
-                  <div className="space-y-2 text-sm">
-                    <p className="text-slate-400">
-                      Active colleges <span className="float-right font-semibold text-slate-100">{metrics.total}</span>
-                    </p>
-                    <p className="text-slate-400">
-                      Submitted <span className="float-right font-semibold text-emerald-300">{metrics.submitted}</span>
-                    </p>
-                    <p className="text-slate-400">
-                      Missing <span className="float-right font-semibold text-amber-300">{metrics.pending}</span>
-                    </p>
+                  <div className="space-y-2.5 text-xs flex-1">
+                    <div className="flex justify-between items-center text-slate-300">
+                      <span>Total Active Colleges:</span>
+                      <span className="font-bold text-white font-mono">{metrics.total}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-300">
+                      <span>Submitted Today:</span>
+                      <span className="font-bold text-emerald-300 font-mono">{metrics.submitted}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-300">
+                      <span>Pending / Missing:</span>
+                      <span className="font-bold text-amber-300 font-mono">{metrics.pending}</span>
+                    </div>
                   </div>
                 </div>
               </article>
 
-              <article className={`${GLASS} p-5`}>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-300">7-Day Compliance Velocity</p>
-                <div className="relative mt-4">
-                  <svg viewBox="0 0 320 128" className="h-36 w-full overflow-visible">
+              {/* Card 2: 7-Day Compliance Velocity Chart */}
+              <article className={`${GLASS_CARD} p-5 space-y-3`}>
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-fuchsia-300">7-Day Compliance Velocity</p>
+                  <BarChart3 className="h-4 w-4 text-fuchsia-400" />
+                </div>
+                <div className="relative pt-2">
+                  <svg viewBox="0 0 360 140" className="h-36 w-full overflow-visible">
                     <defs>
-                      <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.45" />
-                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                      <linearGradient id="velocityFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#E056FD" stopOpacity="0.45" />
+                        <stop offset="100%" stopColor="#E056FD" stopOpacity="0" />
                       </linearGradient>
                     </defs>
-                    <path d={chart.area} fill="url(#areaFill)" />
-                    <path d={chart.line} fill="none" stroke="#60a5fa" strokeWidth="2.5" />
+                    <path d={chart.area} fill="url(#velocityFill)" />
+                    <path d={chart.line} fill="none" stroke="#E056FD" strokeWidth="3" />
                     {chart.points.map((point, index) => (
                       <circle
                         key={trend[index]?.date}
                         cx={point.x}
                         cy={point.y}
-                        r={hoverDay === index ? 5 : 3.5}
-                        fill="#93c5fd"
-                        className="cursor-pointer"
+                        r={hoverDay === index ? 5.5 : 4}
+                        fill="#ffffff"
+                        stroke="#E056FD"
+                        strokeWidth="2"
+                        className="cursor-pointer transition-all"
                         onMouseEnter={() => setHoverDay(index)}
                         onMouseLeave={() => setHoverDay(null)}
                       />
                     ))}
                   </svg>
+
                   {hoverDay !== null && trend[hoverDay] && (
-                    <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded-xl border border-white/[0.08] bg-[#121829]/90 px-3 py-1.5 text-xs text-slate-200">
-                      {trend[hoverDay].label}: {trend[hoverDay].submitted} submitted · {trend[hoverDay].pct.toFixed(0)}%
+                    <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded-xl border border-white/10 bg-[#1E173E]/95 px-3 py-1.5 text-xs text-white shadow-xl backdrop-blur-md">
+                      <span className="font-bold text-fuchsia-300">{trend[hoverDay].label}</span>: {trend[hoverDay].submitted} submitted ({trend[hoverDay].pct.toFixed(0)}%)
                     </div>
                   )}
-                  <div className="mt-2 flex justify-between text-[10px] uppercase tracking-wider text-slate-500">
+
+                  <div className="mt-2 flex justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
                     {trend.map((day) => (
                       <span key={day.date}>{day.label}</span>
                     ))}
@@ -643,20 +747,26 @@ export default function Home() {
                 </div>
               </article>
 
-              <article className={`${GLASS} p-5`}>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-300">Cutoff Timer</p>
-                <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-50">{formatCountdown(cutoffMs)}</p>
-                <p className="mt-1 text-sm text-slate-400">Until 3:00 PM PKT · now {pktNow}</p>
-                <p className="mt-3 text-xs leading-relaxed text-slate-500">
+              {/* Card 3: Cutoff Timer & Rule Info */}
+              <article className={`${GLASS_CARD} p-5 space-y-4`}>
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-fuchsia-300">Cutoff Window & Timer</p>
+                  <Clock className="h-4 w-4 text-fuchsia-400" />
+                </div>
+                <div>
+                  <p className="text-3xl font-extrabold text-white font-mono tracking-tight">{formatCountdown(cutoffMs)}</p>
+                  <p className="text-xs text-slate-300 mt-1">Until 3:00 PM PKT deadline • current time: <span className="text-fuchsia-300 font-bold">{pktNow}</span></p>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed bg-[#1E173E]/50 p-3 rounded-2xl border border-white/5">
                   Submissions are accepted until 3:00 PM Pakistan Standard Time. Captures after the window remain visible without late tags.
                 </p>
                 <button
                   type="button"
                   onClick={exportCsv}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-2.5 text-sm font-semibold text-white shadow-[0_0_20px_rgba(37,99,235,0.45)] hover:bg-blue-500"
+                  className="w-full py-3 rounded-2xl font-bold bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:brightness-110 active:scale-[0.98] text-white flex items-center justify-center gap-2 text-xs transition-all shadow-lg shadow-fuchsia-600/25"
                 >
                   <Download className="h-4 w-4" />
-                  Instant report download
+                  Download Today's Report
                 </button>
               </article>
             </aside>
@@ -664,28 +774,40 @@ export default function Home() {
         </div>
       </div>
 
+      {/* High-Resolution Lightbox Inspection Modal */}
       {lightboxRow?.submission?.image_url && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B101E]/80 p-4 backdrop-blur-2xl" onClick={() => setLightboxRow(null)}>
-          <div className={`${GLASS} max-h-[92vh] w-full max-w-4xl overflow-hidden`} onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 p-5">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B081A]/85 p-4 backdrop-blur-2xl"
+          onClick={() => setLightboxRow(null)}
+        >
+          <div
+            className={`${GLASS_CARD} max-h-[92vh] w-full max-w-4xl overflow-hidden`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 p-5 border-b border-white/10">
               <div>
-                <span className="rounded-full border border-blue-500/30 bg-blue-600/20 px-2.5 py-1 font-mono text-[11px] font-semibold text-blue-300">
+                <span className="bg-[#2E245C] text-fuchsia-300 border border-fuchsia-500/20 px-3 py-1 rounded-xl text-xs font-bold font-mono">
                   {lightboxRow.institution.code}
                 </span>
-                <h3 className="mt-2 text-lg font-semibold text-slate-50">{lightboxRow.institution.name}</h3>
-                <p className="mt-1 text-xs text-slate-400">
-                  {karachiClock(lightboxRow.submission.submission_time || lightboxRow.submission.created_at)} PKT
+                <h3 className="mt-2 text-lg font-bold text-white">{lightboxRow.institution.name}</h3>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  Submission Timestamp: {karachiClock(lightboxRow.submission.submission_time || lightboxRow.submission.created_at)} PKT
                 </p>
               </div>
-              <button type="button" onClick={() => setLightboxRow(null)} className="rounded-full border border-white/[0.08] p-2 text-slate-300" aria-label="Close">
+              <button
+                type="button"
+                onClick={() => setLightboxRow(null)}
+                className="rounded-full border border-white/10 p-2 text-slate-300 hover:bg-white/10 transition-colors"
+                aria-label="Close modal"
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="px-5 pb-5">
+            <div className="p-5 flex justify-center bg-[#130E29]/60">
               <img
                 src={lightboxRow.submission.image_url}
                 alt={`Assembly photo for ${lightboxRow.institution.name}`}
-                className="max-h-[70vh] w-full rounded-2xl object-contain"
+                className="max-h-[68vh] w-full rounded-2xl object-contain shadow-2xl"
               />
             </div>
           </div>
