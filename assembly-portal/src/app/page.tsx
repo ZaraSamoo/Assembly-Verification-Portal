@@ -298,10 +298,11 @@ export default function Home() {
   const metrics = useMemo(() => {
     const total = rows.length;
     const submitted = rows.filter((row) => row.displayStatus === 'submitted' || row.displayStatus === 'verified').length;
-    const outstanding = total - submitted;
+    const pending = total - submitted;
+    const outstanding = pending;
     const compliance = total === 0 ? 0 : (submitted / total) * 100;
     const absence = absenceStatus(selectedDate, now);
-    return { total, submitted, outstanding, compliance, absence };
+    return { total, submitted, pending, outstanding, compliance, absence };
   }, [rows, selectedDate, now]);
 
   const query = (search || headerSearch).trim().toLowerCase();
