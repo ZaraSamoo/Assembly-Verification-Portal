@@ -7,13 +7,13 @@ import {
   Building2,
   Calendar,
   CheckCircle2,
-  Clock,
+  Clock3,
   Download,
   Flag,
   ImageOff,
   Loader2,
-  Radio,
   Search,
+  Shield,
   Timer,
   TrendingUp,
   X,
@@ -52,10 +52,17 @@ interface CollegeRow {
 }
 
 const CUTOFF_LABEL = '10:30 AM';
-const GLASS = 'bg-slate-900/50 backdrop-blur-xl border border-white/10 rounded-3xl shadow-xl';
+const SURFACE =
+  'bg-slate-900/60 backdrop-blur-xl border border-slate-800/70 hover:border-slate-700/60 shadow-xl rounded-2xl transition-colors';
 
 function todayISO() {
   return format(new Date(), 'yyyy-MM-dd');
+}
+
+function academicSession(date = new Date()) {
+  const year = date.getFullYear();
+  const start = date.getMonth() >= 7 ? year : year - 1;
+  return `${start}–${String(start + 1).slice(-2)}`;
 }
 
 function asId(value: number | string) {
@@ -132,15 +139,13 @@ function resolveStatus(submission: Submission | null): DisplayStatus {
 function statusPill(status: DisplayStatus) {
   switch (status) {
     case 'verified':
-      return 'bg-emerald-500/15 text-emerald-300 border-emerald-400/30';
+    case 'submitted':
+      return 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_18px_rgba(16,185,129,0.12)]';
     case 'late':
-      return 'bg-rose-500/15 text-rose-300 border-rose-400/30';
+      return 'bg-amber-500/10 border-amber-500/20 text-amber-400 shadow-[0_0_18px_rgba(245,158,11,0.12)]';
     case 'missing':
-      return 'bg-slate-500/15 text-slate-300 border-white/10';
     case 'flagged':
-      return 'bg-amber-500/15 text-amber-300 border-amber-400/30';
-    default:
-      return 'bg-sky-500/15 text-sky-300 border-sky-400/30';
+      return 'bg-rose-500/10 border-rose-500/20 text-rose-400 shadow-[0_0_18px_rgba(244,63,94,0.12)]';
   }
 }
 
@@ -225,6 +230,15 @@ export default function ExecutiveDashboard() {
     return () => window.clearInterval(timer);
   }, [loadData]);
 
+  useEffect(() => {
+    if (!lightboxRow) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setLightboxRow(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightboxRow]);
+
   const rows = useMemo<CollegeRow[]>(() => {
     const activeColleges = institutions.filter((institution) => institution.is_active !== false);
     const latestByInstitution = new Map<string, Submission>();
@@ -258,7 +272,7 @@ export default function ExecutiveDashboard() {
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     return rows.filter((row) => {
-      if (statusTab === 'submitted' && (row.displayStatus === 'missing')) return false;
+      if (statusTab === 'submitted' && row.displayStatus === 'missing') return false;
       if (statusTab === 'pending' && row.displayStatus !== 'missing') return false;
       if (statusTab === 'late' && row.displayStatus !== 'late') return false;
       if (!query) return true;
@@ -274,7 +288,8 @@ export default function ExecutiveDashboard() {
     const pending = total - submitted;
     const late = rows.filter((row) => row.displayStatus === 'late').length;
     const compliance = total === 0 ? 0 : (submitted / total) * 100;
-    return { total, submitted, pending, late, compliance };
+    const submittedPct = total === 0 ? 0 : (submitted / total) * 100;
+    return { total, submitted, pending, late, compliance, submittedPct };
   }, [rows]);
 
   const exportCsv = () => {
@@ -343,78 +358,109 @@ export default function ExecutiveDashboard() {
   };
 
   const tabs: { id: StatusTab; label: string }[] = [
-    { id: 'all', label: 'All' },
+    { id: 'all', label: 'All Colleges' },
     { id: 'submitted', label: 'Submitted' },
-    { id: 'pending', label: 'Pending / Missing' },
+    { id: 'pending', label: 'Pending' },
     { id: 'late', label: 'Late' },
   ];
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#050811] text-slate-100">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-24 left-[12%] h-[28rem] w-[28rem] rounded-full bg-indigo-600/25 blur-[140px]" />
-        <div className="absolute top-[30%] right-[-8%] h-[32rem] w-[32rem] rounded-full bg-blue-600/20 blur-[160px]" />
-        <div className="absolute bottom-[-10%] left-[30%] h-80 w-80 rounded-full bg-sky-500/10 blur-[120px]" />
-      </div>
+    <main className="relative min-h-screen overflow-hidden bg-[#06090F] text-slate-100">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            'radial-gradient(circle at 20% 0%, rgba(59, 130, 246, 0.08) 0%, transparent 50%), radial-gradient(circle at 80% 0%, rgba(99, 102, 241, 0.07) 0%, transparent 50%), radial-gradient(circle at 50% 100%, rgba(16, 185, 129, 0.04) 0%, transparent 42%)',
+        }}
+      />
 
-      <div className="relative z-10 mx-auto max-w-7xl space-y-6 p-4 md:p-8">
-        <header className={`${GLASS} flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between`}>
-          <div className="flex items-start gap-4">
-            <SindhCrest />
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200/90">
-                Government of Sindh
-              </p>
-              <p className="mt-0.5 text-xs text-slate-400">College Education Department</p>
-              <h1 className="mt-2 text-2xl font-bold tracking-tight text-white md:text-3xl">
-                Regional &amp; Finance Monitoring Portal — Daily Assembly Compliance
-              </h1>
-              <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-300">
-                <Radio className={`h-3.5 w-3.5 ${live ? 'text-emerald-400' : 'text-slate-400'}`} />
-                {live ? 'Live tracking' : 'Connecting live feed'}
+      <div className="relative z-10 mx-auto max-w-[1440px] space-y-6 px-4 py-6 md:px-8 md:py-8">
+        <header className={`${SURFACE} px-5 py-5 md:px-7 md:py-6`}>
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <SindhCrest />
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                  Government of Sindh • College Education Department
+                </p>
+                <h1 className="mt-1.5 text-[1.65rem] font-semibold leading-tight tracking-tight text-slate-50 md:text-[2rem]">
+                  Assembly Compliance &amp; Verification Directorate
+                </h1>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-slate-800/80 bg-slate-950/50 px-3 py-1 text-[11px] font-medium text-slate-300">
+                    {format(new Date(`${selectedDate}T00:00:00`), 'EEE, d MMM yyyy')}
+                  </span>
+                  <span className="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-3 py-1 text-[11px] font-medium text-indigo-400">
+                    Session {academicSession()}
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-400">
+                    <span className="relative flex h-2 w-2">
+                      <span className={`absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 ${live ? 'animate-ping' : ''}`} />
+                      <span className={`relative inline-flex h-2 w-2 rounded-full ${live ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+                    </span>
+                    {live ? 'Live Feed' : 'Feed Offline'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={exportCsv}
-            className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-600/30 transition hover:bg-indigo-500"
-          >
-            <Download className="h-4 w-4" />
-            Export CSV / Report
-          </button>
         </header>
 
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <MetricCard icon={<Building2 className="h-8 w-8 text-indigo-300" />} label="Total Colleges" value={metrics.total} />
-          <MetricCard icon={<CheckCircle2 className="h-8 w-8 text-emerald-300" />} label="Submitted Today" value={metrics.submitted} accent="text-emerald-300" />
-          <MetricCard icon={<Clock className="h-8 w-8 text-amber-300" />} label="Missing Today" value={metrics.pending} accent="text-amber-300" />
           <MetricCard
-            icon={<Timer className="h-8 w-8 text-rose-300" />}
+            icon={<Building2 className="h-5 w-5" />}
+            iconClass="text-indigo-400 bg-indigo-500/10"
+            label="Total Registered Colleges"
+            value={metrics.total}
+          />
+          <MetricCard
+            icon={<CheckCircle2 className="h-5 w-5" />}
+            iconClass="text-emerald-400 bg-emerald-500/10"
+            label="Assembly Verified Today"
+            value={metrics.submitted}
+            accent="text-emerald-400"
+            percent={`${metrics.submittedPct.toFixed(1)}%`}
+            percentClass="text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+          />
+          <MetricCard
+            icon={<Clock3 className="h-5 w-5" />}
+            iconClass="text-rose-400 bg-rose-500/10"
+            label="Pending Submissions"
+            value={metrics.pending}
+            accent="text-rose-400"
+            percent="Action needed"
+            percentClass="text-rose-400 bg-rose-500/10 border-rose-500/20"
+          />
+          <MetricCard
+            icon={<Timer className="h-5 w-5" />}
+            iconClass="text-amber-400 bg-amber-500/10"
             label="Late Submissions"
             value={metrics.late}
-            accent="text-rose-300"
+            accent="text-amber-400"
             hint={`After ${CUTOFF_LABEL} cutoff`}
           />
           <MetricCard
-            icon={<TrendingUp className="h-8 w-8 text-sky-300" />}
-            label="Compliance Rate"
+            icon={<TrendingUp className="h-5 w-5" />}
+            iconClass="text-cyan-400 bg-cyan-500/10"
+            label="Today's Compliance Rate"
             value={`${metrics.compliance.toFixed(1)}%`}
-            accent="text-sky-300"
-            hint={`${metrics.submitted} of ${metrics.total} colleges`}
+            accent="text-indigo-400"
+            progress={metrics.compliance}
           />
         </section>
 
-        <section className={`${GLASS} overflow-hidden`}>
-          <div className="flex flex-col gap-4 border-b border-white/10 p-4 md:flex-row md:items-center md:justify-between md:p-5">
-            <div>
-              <h2 className="text-lg font-semibold text-white">Live Verification Feed</h2>
-              <p className="text-xs text-slate-400">{filteredRows.length} colleges in current view</p>
+        <section className={`${SURFACE} overflow-hidden p-0 hover:border-slate-800/70`}>
+          <div className="flex flex-col gap-4 px-5 py-4 md:px-6">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold tracking-tight text-slate-100">Verification register</h2>
+                <p className="text-xs text-slate-500">{filteredRows.length} colleges in the current view</p>
+              </div>
             </div>
-            <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:items-center">
-              <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/60 px-3.5 py-2">
-                <Calendar className="h-4 w-4 text-indigo-300" />
+
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+              <label className="flex h-11 items-center gap-2.5 rounded-xl border border-slate-800/80 bg-slate-950/40 px-3.5">
+                <Calendar className="h-4 w-4 text-indigo-400" />
                 <input
                   type="date"
                   value={selectedDate}
@@ -423,109 +469,139 @@ export default function ExecutiveDashboard() {
                   aria-label="Filter by submission date"
                 />
               </label>
-              <div className="flex flex-wrap gap-2">
+
+              <label className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search college name or code (KQ…)"
+                  className="h-11 w-full rounded-xl border border-slate-800/80 bg-slate-950/40 py-2.5 pl-10 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-indigo-500/40"
+                />
+              </label>
+
+              <div className="flex h-11 items-center gap-1 overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-950/40 p-1">
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
                     onClick={() => setStatusTab(tab.id)}
-                    className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
+                    className={`whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
                       statusTab === tab.id
-                        ? 'border-indigo-400/40 bg-indigo-500/20 text-indigo-200'
-                        : 'border-white/10 bg-slate-950/40 text-slate-400 hover:text-white'
+                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25'
+                        : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
                     }`}
                   >
                     {tab.label}
                   </button>
                 ))}
               </div>
-              <label className="relative min-w-[240px] flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search college name or code (e.g. KQ2218)"
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/60 py-2.5 pl-10 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-indigo-400/40"
-                />
-              </label>
+
+              <button
+                type="button"
+                onClick={exportCsv}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white shadow-lg shadow-indigo-600/25 transition hover:bg-indigo-500 hover:shadow-indigo-500/40"
+              >
+                <Download className="h-4 w-4" />
+                Export CSV Report
+              </button>
             </div>
           </div>
 
           {errorMessage && (
-            <div className="mx-4 mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300 md:mx-5">
+            <div className="mx-5 mb-4 rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-400">
               {errorMessage}
             </div>
           )}
 
           {loading ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-16">
-              <Loader2 className="h-8 w-8 animate-spin text-indigo-300" />
-              <p className="text-sm text-slate-400">Loading live assembly compliance…</p>
+            <div className="flex flex-col items-center justify-center gap-3 py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
+              <p className="text-sm text-slate-500">Synchronizing live assembly compliance…</p>
             </div>
           ) : filteredRows.length === 0 ? (
-            <div className="px-5 py-16 text-center text-sm text-slate-500">No colleges match the current filters.</div>
+            <div className="px-6 py-20 text-center text-sm text-slate-500">No colleges match the current filters.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[880px] text-left">
+              <table className="w-full min-w-[920px] border-separate border-spacing-0 text-left">
                 <thead>
-                  <tr className="border-b border-white/10 text-[11px] uppercase tracking-wider text-slate-400">
-                    <th className="px-5 py-3 font-semibold">College Code</th>
-                    <th className="px-5 py-3 font-semibold">Institution Name</th>
-                    <th className="px-5 py-3 font-semibold">Status</th>
-                    <th className="px-5 py-3 font-semibold">Date &amp; Time</th>
-                    <th className="px-5 py-3 font-semibold">Photo</th>
-                    <th className="px-5 py-3 font-semibold">Remarks</th>
+                  <tr className="bg-slate-900/80 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    <th className="px-5 py-3.5">College</th>
+                    <th className="px-5 py-3.5">Status</th>
+                    <th className="px-5 py-3.5">Time</th>
+                    <th className="px-5 py-3.5">Photo</th>
+                    <th className="px-5 py-3.5">Notes</th>
+                  </tr>
+                  <tr>
+                    <td colSpan={5} className="h-px bg-slate-800/70 p-0" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5 text-sm">
-                  {filteredRows.map((row) => (
-                    <tr key={asId(row.institution.id)} className="transition hover:bg-white/5">
-                      <td className="px-5 py-4 font-mono text-sm font-semibold text-indigo-300">{row.institution.code}</td>
-                      <td className="px-5 py-4">
-                        <p className="font-semibold text-slate-100">{row.institution.name}</p>
-                        {regionName(row.institution) && (
-                          <p className="mt-1 text-[11px] text-slate-500">{regionName(row.institution)}</p>
-                        )}
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusPill(row.displayStatus)}`}>
-                          {statusLabel(row.displayStatus)}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 text-slate-300">
-                        {row.submission
-                          ? formatDateTime(row.submission.submission_date, row.submission.submission_time || row.submission.created_at)
-                          : format(new Date(`${selectedDate}T00:00:00`), 'MMM d, yyyy')}
-                      </td>
-                      <td className="px-5 py-4">
-                        {row.submission?.image_url ? (
-                          <button
-                            type="button"
-                            onClick={() => openLightbox(row)}
-                            className="block h-14 w-20 overflow-hidden rounded-xl border border-white/10"
-                            aria-label={`Inspect photo for ${row.institution.name}`}
-                          >
-                            <img src={row.submission.image_url} alt="" className="h-full w-full object-cover" />
-                          </button>
-                        ) : (
-                          <div className="flex h-14 w-20 items-center justify-center rounded-xl border border-white/10 bg-slate-950/70 text-slate-500">
-                            <ImageOff className="h-4 w-4" />
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-5 py-4 text-slate-400">
-                        <div className="flex flex-col gap-1">
-                          {row.displayStatus === 'late' && (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-300">
-                              <AlertTriangle className="h-3.5 w-3.5" />
-                              Late after {CUTOFF_LABEL}
+                <tbody>
+                  {filteredRows.map((row) => {
+                    const timeLabel = formatTimeOnly(
+                      row.submission?.submission_time ?? null,
+                      row.submission?.created_at ?? null
+                    );
+                    return (
+                      <tr key={asId(row.institution.id)} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="px-5 py-4 align-middle">
+                          <p className="font-semibold text-slate-100">{row.institution.name}</p>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            <span className="rounded-md border border-slate-800/80 bg-slate-950/60 px-2 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-indigo-400">
+                              {row.institution.code}
                             </span>
+                            {regionName(row.institution) && (
+                              <span className="text-[11px] text-slate-500">{regionName(row.institution)}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 align-middle">
+                          <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusPill(row.displayStatus)}`}>
+                            {statusLabel(row.displayStatus)}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 align-middle">
+                          {row.submission && timeLabel ? (
+                            <div>
+                              <p className="text-sm font-medium text-slate-200">{timeLabel}</p>
+                              <p
+                                className={`mt-0.5 text-[11px] font-medium ${
+                                  row.displayStatus === 'late' ? 'text-amber-400' : 'text-emerald-400'
+                                }`}
+                              >
+                                {row.displayStatus === 'late' ? `Late · after ${CUTOFF_LABEL}` : 'On time'}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-slate-500">Awaiting capture</p>
                           )}
-                          <span className="text-xs">{row.submission?.remarks || '—'}</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-5 py-4 align-middle">
+                          {row.submission?.image_url ? (
+                            <button
+                              type="button"
+                              onClick={() => openLightbox(row)}
+                              className="group block h-14 w-[4.5rem] overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/40"
+                              aria-label={`Inspect photo for ${row.institution.name}`}
+                            >
+                              <img
+                                src={row.submission.image_url}
+                                alt=""
+                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                              />
+                            </button>
+                          ) : (
+                            <div className="flex h-14 w-[4.5rem] items-center justify-center rounded-xl border border-slate-800/80 bg-slate-950/40 text-slate-600">
+                              <ImageOff className="h-4 w-4" />
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-5 py-4 align-middle text-xs text-slate-500">
+                          {row.submission?.remarks || '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -534,13 +610,15 @@ export default function ExecutiveDashboard() {
       </div>
 
       {lightboxRow?.submission?.image_url && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
-          <div className={`${GLASS} flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden`}>
-            <div className="flex items-start justify-between gap-4 border-b border-white/10 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-2xl">
+          <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-800/70 bg-slate-900/80 shadow-2xl backdrop-blur-xl">
+            <div className="flex items-start justify-between gap-4 px-5 py-4">
               <div>
-                <p className="font-mono text-xs text-indigo-300">{lightboxRow.institution.code}</p>
-                <h3 className="text-lg font-semibold text-white">{lightboxRow.institution.name}</h3>
-                <p className="text-xs text-slate-400">
+                <span className="rounded-md border border-slate-800/80 bg-slate-950/60 px-2 py-0.5 font-mono text-[11px] font-semibold text-indigo-400">
+                  {lightboxRow.institution.code}
+                </span>
+                <h3 className="mt-2 text-lg font-semibold tracking-tight text-slate-50">{lightboxRow.institution.name}</h3>
+                <p className="mt-1 text-xs text-slate-400">
                   {formatDateTime(
                     lightboxRow.submission.submission_date,
                     lightboxRow.submission.submission_time || lightboxRow.submission.created_at
@@ -551,7 +629,7 @@ export default function ExecutiveDashboard() {
                 <button
                   type="button"
                   onClick={() => setZoom((value) => Math.max(1, Number((value - 0.25).toFixed(2))))}
-                  className="rounded-xl border border-white/10 p-2 text-slate-300 hover:bg-white/5"
+                  className="rounded-xl border border-slate-800/80 p-2 text-slate-300 transition hover:border-slate-700/60 hover:bg-slate-800/40"
                   aria-label="Zoom out"
                 >
                   <ZoomOut className="h-4 w-4" />
@@ -559,7 +637,7 @@ export default function ExecutiveDashboard() {
                 <button
                   type="button"
                   onClick={() => setZoom((value) => Math.min(3, Number((value + 0.25).toFixed(2))))}
-                  className="rounded-xl border border-white/10 p-2 text-slate-300 hover:bg-white/5"
+                  className="rounded-xl border border-slate-800/80 p-2 text-slate-300 transition hover:border-slate-700/60 hover:bg-slate-800/40"
                   aria-label="Zoom in"
                 >
                   <ZoomIn className="h-4 w-4" />
@@ -567,7 +645,7 @@ export default function ExecutiveDashboard() {
                 <button
                   type="button"
                   onClick={() => setLightboxRow(null)}
-                  className="rounded-xl border border-white/10 p-2 text-slate-300 hover:bg-white/5"
+                  className="rounded-xl border border-slate-800/80 p-2 text-slate-300 transition hover:border-slate-700/60 hover:bg-slate-800/40"
                   aria-label="Close inspection"
                 >
                   <X className="h-4 w-4" />
@@ -576,7 +654,7 @@ export default function ExecutiveDashboard() {
             </div>
 
             <div
-              className="flex-1 overflow-auto bg-slate-950/50 p-4"
+              className="flex-1 overflow-auto bg-slate-950/40 px-5 py-4"
               onWheel={(event) => {
                 event.preventDefault();
                 setZoom((value) => Math.min(3, Math.max(1, Number((value + (event.deltaY < 0 ? 0.1 : -0.1)).toFixed(2)))));
@@ -585,24 +663,22 @@ export default function ExecutiveDashboard() {
               <img
                 src={lightboxRow.submission.image_url}
                 alt={`Assembly photo for ${lightboxRow.institution.name}`}
-                className="mx-auto max-h-[58vh] origin-center rounded-2xl object-contain transition-transform"
+                className="mx-auto max-h-[58vh] origin-center rounded-2xl object-contain shadow-2xl transition-transform"
                 style={{ transform: `scale(${zoom})` }}
               />
             </div>
 
-            <div className="flex flex-col gap-3 border-t border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-slate-400">
-                Officer action: approve a compliant photo or flag it for follow-up.
-              </p>
+            <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-slate-500">Inspect the capture, then approve a compliant assembly or flag it for follow-up.</p>
               <div className="flex gap-2">
                 <button
                   type="button"
                   disabled={actionBusy}
                   onClick={() => void updateStatus(lightboxRow.submission!.id, 'verified')}
-                  className={`inline-flex flex-1 items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition sm:flex-none ${
+                  className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition sm:flex-none ${
                     lightboxRow.submission.status === 'verified'
                       ? 'bg-emerald-500 text-slate-950'
-                      : 'border border-emerald-400/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                      : 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
                   }`}
                 >
                   <CheckCircle2 className="h-4 w-4" />
@@ -612,10 +688,10 @@ export default function ExecutiveDashboard() {
                   type="button"
                   disabled={actionBusy}
                   onClick={() => void updateStatus(lightboxRow.submission!.id, 'flagged')}
-                  className={`inline-flex flex-1 items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition sm:flex-none ${
+                  className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition sm:flex-none ${
                     lightboxRow.submission.status === 'flagged'
                       ? 'bg-rose-500 text-white'
-                      : 'border border-rose-400/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20'
+                      : 'border border-rose-500/20 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20'
                   }`}
                 >
                   <Flag className="h-4 w-4" />
@@ -633,44 +709,56 @@ export default function ExecutiveDashboard() {
 function SindhCrest() {
   return (
     <div
-      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-amber-300/30 bg-gradient-to-b from-emerald-800/70 to-slate-950 shadow-inner"
+      className="flex h-[3.35rem] w-[3.35rem] shrink-0 items-center justify-center rounded-2xl border border-slate-800/80 bg-gradient-to-b from-slate-800/80 to-slate-950 shadow-inner"
       aria-hidden
     >
-      <svg viewBox="0 0 48 48" className="h-9 w-9">
-        <path
-          d="M24 4 40 12v12c0 10.5-7.2 17.8-16 20-8.8-2.2-16-9.5-16-20V12L24 4Z"
-          fill="#0f172a"
-          stroke="#fbbf24"
-          strokeWidth="1.6"
-        />
-        <path d="M24 14c3.4 0 6 2.5 6 5.6 0 2.2-1.3 4.1-3.2 5.1L24 36l-2.8-11.3c-1.9-1-3.2-2.9-3.2-5.1C18 16.5 20.6 14 24 14Z" fill="#22c55e" />
-        <circle cx="24" cy="19.2" r="2.1" fill="#fbbf24" />
-      </svg>
+      <Shield className="h-6 w-6 text-indigo-400" />
     </div>
   );
 }
 
 function MetricCard({
   icon,
+  iconClass,
   label,
   value,
   hint,
-  accent = 'text-white',
+  accent = 'text-slate-50',
+  percent,
+  percentClass,
+  progress,
 }: {
   icon: React.ReactNode;
+  iconClass: string;
   label: string;
   value: string | number;
   hint?: string;
   accent?: string;
+  percent?: string;
+  percentClass?: string;
+  progress?: number;
 }) {
   return (
-    <div className={`${GLASS} flex items-center justify-between p-5`}>
-      <div>
-        <p className="text-xs font-medium text-slate-400">{label}</p>
-        <p className={`mt-1 text-3xl font-extrabold ${accent}`}>{value}</p>
-        {hint && <p className="mt-1 text-[11px] text-slate-500">{hint}</p>}
+    <div className={`${SURFACE} p-5`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${iconClass}`}>{icon}</div>
+        {percent && (
+          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${percentClass}`}>
+            {percent}
+          </span>
+        )}
       </div>
-      {icon}
+      <p className="mt-4 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className={`mt-1.5 text-[1.85rem] font-semibold leading-none tracking-tight ${accent}`}>{value}</p>
+      {hint && <p className="mt-2 text-[11px] text-slate-500">{hint}</p>}
+      {typeof progress === 'number' && (
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-950/80">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-cyan-400"
+            style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 }
