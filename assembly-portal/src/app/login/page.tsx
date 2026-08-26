@@ -12,9 +12,9 @@ export default function LoginPage() {
       case 'principal':
         return '/principal';
       case 'finance_officer':
-        return '/finance';
+        return '/dashboard';
       case 'regional_director':
-        return '/director';
+        return '/dashboard';
     }
   };
 

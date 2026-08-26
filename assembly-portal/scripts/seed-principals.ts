@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import * as path from 'path';
 import * as fs from 'fs';
 
+// Direct Supabase credentials
 const supabaseUrl = 'https://pucctownicjpuejjodbm.supabase.co';
 const serviceRoleKey = 'sb_secret_Z8P3xOmZ0GQK9IPJg1efDw_v1KmjJwC';
 
@@ -54,6 +55,7 @@ async function runSeed() {
 
     if (!code) continue;
 
+    // 1. Upsert institution
     const { data: instData, error: instErr } = await supabaseAdmin
       .from('institutions')
       .upsert(
@@ -73,6 +75,7 @@ async function runSeed() {
 
     let userId: string | null = null;
 
+    // 2. Create Auth User
     const { data: authUser, error: authErr } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -93,6 +96,7 @@ async function runSeed() {
       userId = authUser.user.id;
     }
 
+    // 3. Link profile
     if (userId) {
       const { error: profErr } = await supabaseAdmin
         .from('profiles')
@@ -119,6 +123,7 @@ async function runSeed() {
     }
   }
 
+  // 4. Output credentials file
   const outWorksheet = XLSX.utils.json_to_sheet(createdCredentials);
   const outWorkbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(outWorkbook, outWorksheet, 'Accounts');

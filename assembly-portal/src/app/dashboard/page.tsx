@@ -2,6 +2,6 @@
 
 import ExecutiveDashboard from '@/components/ExecutiveDashboard';
 
-export default function FinanceOfficerPortal() {
+export default function DashboardPage() {
   return <ExecutiveDashboard />;
 }

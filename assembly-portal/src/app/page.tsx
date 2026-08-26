@@ -54,10 +54,10 @@ export default function Home() {
           router.push('/principal');
           break;
         case 'finance_officer':
-          router.push('/finance');
+          router.push('/dashboard');
           break;
         case 'regional_director':
-          router.push('/director');
+          router.push('/dashboard');
           break;
         default:
           setError('Invalid user role assigned.');
