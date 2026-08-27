@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 @source "../**/*.{js,ts,jsx,tsx,mdx}";
+@source "../../src/**/*.{js,ts,jsx,tsx,mdx}";
 
 :root {
-  --background: #09090b;
+  --background: #110B24;
   --foreground: #f8fafc;
   color-scheme: dark;
 }

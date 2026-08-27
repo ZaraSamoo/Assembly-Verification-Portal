@@ -343,113 +343,111 @@ export default function Home() {
   const isClosedNow = isWindowClosed(now);
 
   return (
-    <main className="min-h-screen bg-[#09090b] text-slate-100 font-sans">
-      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-        {/* Header & Controls Bar */}
-        <header className="border border-slate-800 bg-slate-900/60 backdrop-blur rounded-xl p-4 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold tracking-wider text-slate-400 uppercase">
-              <span>Government of Sindh</span>
-              <span>•</span>
-              <span>College Education Department</span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-100 mt-1">
-              Assembly Verification Portal
-            </h1>
+    <main className="min-h-screen bg-[#110B24] text-slate-100 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 font-sans">
+      {/* Top Header */}
+      <header className="bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-widest text-fuchsia-400">
+            <span>Government of Sindh</span>
+            <span className="text-slate-600">•</span>
+            <span className="text-slate-400 font-semibold">College Education Department</span>
           </div>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-white mt-1">
+            Assembly Verification Portal
+          </h1>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 border border-slate-800 bg-slate-900/80 hover:border-slate-700 px-3.5 py-2 rounded-lg text-xs font-medium text-slate-200 shadow-sm transition-colors focus-within:border-slate-700">
-              <Calendar className="h-4 w-4 text-slate-400" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(event) => setSelectedDate(event.target.value)}
-                className="bg-transparent outline-none text-slate-100 cursor-pointer"
-              />
-            </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 rounded-2xl border border-white/[0.08] bg-[#1E1442]/80 px-3.5 py-2 text-xs text-slate-200 shadow-inner">
+            <Calendar className="h-4 w-4 text-fuchsia-400" />
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(event) => setSelectedDate(event.target.value)}
+              className="bg-transparent font-semibold outline-none text-white cursor-pointer"
+            />
+          </label>
 
-            <span className="inline-flex items-center gap-2 border border-slate-800 bg-slate-900/80 px-3.5 py-2 rounded-lg text-xs font-medium text-slate-300 shadow-sm">
-              <span className="relative flex h-2 w-2">
-                <span className={`absolute inset-0 rounded-full bg-emerald-400 ${live ? 'animate-ping opacity-75' : 'opacity-0'}`} />
-                <span className={`relative h-2 w-2 rounded-full ${live ? 'bg-emerald-400' : 'bg-slate-500'}`} />
-              </span>
-              Live Feed
+          <span className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3.5 py-2 text-xs font-semibold text-emerald-300">
+            <span className="relative flex h-2 w-2">
+              <span className={`absolute inset-0 rounded-full bg-emerald-400 ${live ? 'animate-ping opacity-75' : 'opacity-0'}`} />
+              <span className={`relative h-2 w-2 rounded-full ${live ? 'bg-emerald-400' : 'bg-slate-500'}`} />
             </span>
+            Live Feed
+          </span>
 
-            <button
-              type="button"
-              onClick={exportCsv}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-white text-slate-900 rounded-lg text-xs font-semibold transition-colors shadow-sm cursor-pointer"
-            >
-              <Download className="h-4 w-4" />
-              Export Audit CSV
-            </button>
+          <button
+            type="button"
+            onClick={exportCsv}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl px-4 py-2 text-xs font-bold shadow-lg transition active:scale-[0.98] cursor-pointer inline-flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Export Audit CSV
+          </button>
+        </div>
+      </header>
+
+      {/* 4-Column KPI Cards Grid */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Total Colleges (Coral #FF6B6B) */}
+        <div className="bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-5 shadow-xl flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#FF6B6B]">Total Colleges</p>
+            <p className="text-3xl font-extrabold text-white">{metrics.total}</p>
+            <p className="text-[11px] text-slate-400">Registered Campuses</p>
           </div>
-        </header>
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF6B6B]/20 text-[#FF6B6B] border border-[#FF6B6B]/30 shrink-0">
+            <Building2 className="h-6 w-6" />
+          </div>
+        </div>
 
-        {/* 4-Column KPI Grid */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between space-y-3">
+        {/* Card 2: Submitted Today (Fuchsia #E056FD) */}
+        <div className="bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-5 shadow-xl flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#E056FD]">Submitted Today</p>
+            <p className="text-3xl font-extrabold text-white">
+              {metrics.submitted} <span className="text-xs font-bold text-emerald-400">({metrics.compliance.toFixed(0)}%)</span>
+            </p>
+            <p className="text-[11px] text-slate-400">Verified Logged Photos</p>
+          </div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E056FD]/20 text-[#E056FD] border border-[#E056FD]/30 shrink-0">
+            <CheckCircle2 className="h-6 w-6" />
+          </div>
+        </div>
+
+        {/* Card 3: Pending / Missing (Lavender #a29bfe) */}
+        <div className="bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-5 shadow-xl flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#a29bfe]">Pending / Missing</p>
+            <p className="text-3xl font-extrabold text-amber-300">{metrics.pending}</p>
+            <p className="text-[11px] text-slate-400">Awaiting Verification</p>
+          </div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#a29bfe]/20 text-[#a29bfe] border border-[#a29bfe]/30 shrink-0">
+            <Clock className="h-6 w-6" />
+          </div>
+        </div>
+
+        {/* Card 4: Compliance Rate (Cyan #00d2d3 with progress bar) */}
+        <div className="bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-5 shadow-xl flex items-center justify-between">
+          <div className="w-full space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Total Colleges</span>
-              <div className="p-2 rounded-lg bg-slate-800/60 border border-slate-700/50 text-slate-400">
-                <Building2 className="h-4 w-4" />
-              </div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#00d2d3]">Compliance Rate</p>
+              <TrendingUp className="h-5 w-5 text-[#00d2d3]" />
             </div>
-            <div>
-              <p className="text-2xl font-bold tracking-tight text-slate-100">{metrics.total}</p>
-              <p className="text-xs text-slate-400 mt-1">Registered Campuses</p>
+            <p className="text-3xl font-extrabold text-white">{metrics.compliance.toFixed(1)}%</p>
+            <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#00d2d3] to-emerald-400 transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(0, metrics.compliance))}%` }}
+              />
             </div>
+            <p className="text-[11px] text-slate-400">{metrics.submitted} of {metrics.total} colleges</p>
           </div>
+        </div>
+      </section>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Submitted Today</span>
-              <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-                <CheckCircle2 className="h-4 w-4" />
-              </div>
-            </div>
-            <div>
-              <p className="text-2xl font-bold tracking-tight text-slate-100">
-                {metrics.submitted}{' '}
-                <span className="text-xs font-semibold text-slate-400">({metrics.compliance.toFixed(0)}%)</span>
-              </p>
-              <p className="text-xs text-slate-400 mt-1">Verified Logged Photos</p>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Pending / Missing</span>
-              <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400">
-                <Clock className="h-4 w-4" />
-              </div>
-            </div>
-            <div>
-              <p className="text-2xl font-bold tracking-tight text-slate-100">{metrics.pending}</p>
-              <p className="text-xs text-slate-400 mt-1">Awaiting Verification</p>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Compliance Rate</span>
-              <div className="p-2 rounded-lg bg-slate-800/60 border border-slate-700/50 text-slate-400">
-                <TrendingUp className="h-4 w-4" />
-              </div>
-            </div>
-            <div>
-              <p className="text-2xl font-bold tracking-tight text-slate-100">{metrics.compliance.toFixed(1)}%</p>
-              <p className="text-xs text-slate-400 mt-1">
-                {metrics.submitted} of {metrics.total} colleges
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Analytics Section */}
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Analytics Section */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <article className="lg:col-span-2 rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur p-5 sm:p-6 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div>
@@ -668,7 +666,6 @@ export default function Home() {
             </div>
           )}
         </section>
-      </div>
 
       {lightboxRow?.submission?.image_url && (
         <div
