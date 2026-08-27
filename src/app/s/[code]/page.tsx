@@ -100,6 +100,14 @@ export default function MagicLinkAccessPage() {
   const params = useParams();
   const router = useRouter();
   const rawCode = (params?.code as string) || '';
+  const cleanCode = decodeURIComponent(String(rawCode)).trim().toUpperCase();
+
+  // Instant 24/7 Admin Interception before any cutoff or DB state initialization
+  useEffect(() => {
+    if (cleanCode === 'RD-FIN-SINDH' || cleanCode === 'OFFICER-SINDH') {
+      router.replace('/');
+    }
+  }, [cleanCode, router]);
 
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [loading, setLoading] = useState(true);
@@ -118,17 +126,14 @@ export default function MagicLinkAccessPage() {
   const cameraTriggeredRef = useRef(false);
 
   const loadInstitution = useCallback(async () => {
-    if (!rawCode) {
-      setInvalidLink(true);
-      setLoading(false);
+    if (cleanCode === 'RD-FIN-SINDH' || cleanCode === 'OFFICER-SINDH') {
+      router.replace('/');
       return;
     }
 
-    const cleanCode = decodeURIComponent(rawCode).trim().toUpperCase();
-
-    // 1. Administrative Short Code Interception
-    if (cleanCode === 'RD-FIN-SINDH' || cleanCode === 'OFFICER-SINDH') {
-      router.replace('/');
+    if (!rawCode) {
+      setInvalidLink(true);
+      setLoading(false);
       return;
     }
 
@@ -195,7 +200,7 @@ export default function MagicLinkAccessPage() {
     } finally {
       setLoading(false);
     }
-  }, [rawCode, router]);
+  }, [cleanCode, rawCode, router]);
 
   useEffect(() => {
     loadInstitution();
