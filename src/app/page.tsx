@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock,
   Download,
+  Image as ImageIcon,
   ImageOff,
   Loader2,
   Search,
@@ -149,8 +150,8 @@ async function loadInstitutionsAndSubmissions(fromDate: string) {
   return { institutions, submissions };
 }
 
-function computeSplinePath(values: number[], width = 500, height = 180) {
-  const max = Math.max(1, ...values);
+function computeSplinePath(values: number[], width = 500, height = 180, totalCeiling = 61) {
+  const max = Math.max(totalCeiling, 1, ...values);
   const padding = 20;
   const availHeight = height - padding * 2;
   const step = values.length > 1 ? width / (values.length - 1) : width;
@@ -196,6 +197,7 @@ export default function Home() {
   const [lightboxRow, setLightboxRow] = useState<CollegeRow | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [hoverDay, setHoverDay] = useState<number | null>(null);
+  const [imgErrorIds, setImgErrorIds] = useState<Record<string, boolean>>({});
 
   const fromDate = useMemo(() => {
     try {
@@ -313,8 +315,8 @@ export default function Home() {
   }, [submissions, selectedDate, registered.length]);
 
   const chart = useMemo(
-    () => computeSplinePath(trend.map((day) => day.submitted), 500, 180),
-    [trend]
+    () => computeSplinePath(trend.map((day) => day.submitted), 500, 180, registered.length || 61),
+    [trend, registered.length]
   );
 
   const exportCsv = () => {
@@ -379,7 +381,7 @@ export default function Home() {
           <button
             type="button"
             onClick={exportCsv}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl px-4 py-2 text-xs font-bold shadow-lg transition active:scale-[0.98] cursor-pointer inline-flex items-center gap-2"
+            className="bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:from-indigo-500 hover:to-fuchsia-500 text-white rounded-2xl px-4 py-2 text-xs font-bold shadow-lg shadow-indigo-600/20 transition active:scale-[0.98] cursor-pointer inline-flex items-center gap-2"
           >
             <Download className="h-4 w-4" />
             Export Audit CSV
@@ -427,7 +429,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Card 4: Compliance Rate (Cyan #00d2d3 with progress bar) */}
+        {/* Card 4: Compliance Rate (Cyan #00d2d3 with mini progress bar) */}
         <div className="bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-5 shadow-xl flex items-center justify-between">
           <div className="w-full space-y-2">
             <div className="flex items-center justify-between">
@@ -435,9 +437,9 @@ export default function Home() {
               <TrendingUp className="h-5 w-5 text-[#00d2d3]" />
             </div>
             <p className="text-3xl font-extrabold text-white">{metrics.compliance.toFixed(1)}%</p>
-            <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[#00d2d3] to-emerald-400 transition-all duration-500"
+                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
                 style={{ width: `${Math.min(100, Math.max(0, metrics.compliance))}%` }}
               />
             </div>
@@ -471,9 +473,15 @@ export default function Home() {
                   </linearGradient>
                 </defs>
 
-                <line x1="0" y1="30" x2="500" y2="30" stroke="rgba(148,163,184,0.12)" strokeDasharray="4 4" />
-                <line x1="0" y1="80" x2="500" y2="80" stroke="rgba(148,163,184,0.12)" strokeDasharray="4 4" />
-                <line x1="0" y1="130" x2="500" y2="130" stroke="rgba(148,163,184,0.12)" strokeDasharray="4 4" />
+                {/* 25%, 50%, 75% Dotted Benchmark Lines */}
+                <line x1="0" y1="55" x2="500" y2="55" stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                <text x="5" y="50" fill="rgba(255,255,255,0.25)" fontSize="9" fontWeight="bold">75%</text>
+
+                <line x1="0" y1="90" x2="500" y2="90" stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                <text x="5" y="85" fill="rgba(255,255,255,0.25)" fontSize="9" fontWeight="bold">50%</text>
+
+                <line x1="0" y1="125" x2="500" y2="125" stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                <text x="5" y="120" fill="rgba(255,255,255,0.25)" fontSize="9" fontWeight="bold">25%</text>
 
                 <path d={chart.areaD} fill="url(#slateGradient)" />
                 <path d={chart.d} fill="none" stroke="#34d399" strokeWidth="2.5" />
@@ -641,22 +649,23 @@ export default function Home() {
                         {statusCopy(row.displayStatus)}
                       </span>
 
-                      {row.submission?.image_url ? (
+                      {row.submission?.image_url && !imgErrorIds[asId(row.institution.id)] ? (
                         <button
                           type="button"
                           onClick={() => setLightboxRow(row)}
-                          className="h-11 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-800 hover:border-slate-600 transition-colors cursor-pointer"
+                          className="w-12 h-12 rounded-xl overflow-hidden border border-white/10 bg-slate-900 flex items-center justify-center shrink-0 hover:border-slate-600 transition-colors cursor-pointer"
                           aria-label={`Inspect photo for ${row.institution.name}`}
                         >
                           <img
                             src={row.submission.image_url}
                             alt=""
                             className="h-full w-full object-cover"
+                            onError={() => setImgErrorIds((prev) => ({ ...prev, [asId(row.institution.id)]: true }))}
                           />
                         </button>
                       ) : (
-                        <div className="flex h-11 w-14 shrink-0 items-center justify-center rounded-lg border border-slate-800 bg-slate-950/60 text-slate-600">
-                          <ImageOff className="h-4 w-4" />
+                        <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/10 bg-slate-900 flex items-center justify-center shrink-0 text-slate-500">
+                          <ImageIcon className="h-5 w-5 opacity-60" />
                         </div>
                       )}
                     </div>
