@@ -105,7 +105,9 @@ function absenceStatus(selectedDate: string, now = new Date()): 'pending' | 'mis
   const today = karachiISO(now);
   if (selectedDate < today) return 'missing';
   if (selectedDate > today) return 'pending';
-  return isWindowClosed(now) ? 'missing' : 'pending';
+  // TEMPORARY TEST OVERRIDE: Cutoff window disabled for testing
+  // return isWindowClosed(now) ? 'missing' : 'pending';
+  return 'pending';
 }
 
 function resolveStatus(submission: Submission | null, absence: 'pending' | 'missing'): DisplayStatus {
@@ -342,7 +344,9 @@ export default function Home() {
     window.URL.revokeObjectURL(url);
   };
 
-  const isClosedNow = isWindowClosed(now);
+  // TEMPORARY TEST OVERRIDE: Cutoff window disabled for testing
+  // const isClosedNow = isWindowClosed(now);
+  const isClosedNow = false;
 
   return (
     <main className="min-h-screen bg-[#110B24] text-slate-100 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 font-sans">

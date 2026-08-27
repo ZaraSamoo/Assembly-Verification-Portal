@@ -192,9 +192,10 @@ export default function MagicLinkAccessPage() {
         }
       }
 
-      if (isWindowClosed()) {
-        setWindowClosed(true);
-      }
+      // TEMPORARY TEST OVERRIDE: Cutoff window disabled for testing
+      // if (isWindowClosed()) {
+      //   setWindowClosed(true);
+      // }
     } catch (err) {
       console.error('Error fetching institution:', err);
       setInvalidLink(true);
@@ -259,11 +260,12 @@ export default function MagicLinkAccessPage() {
   const handleSubmitPhoto = async () => {
     if (!compressedImage || !institution) return;
 
-    if (isWindowClosed()) {
-      setWindowClosed(true);
-      setErrorMessage('Daily Submission Window Closed (Closes at 3:00 PM PKT)');
-      return;
-    }
+    // TEMPORARY TEST OVERRIDE: Cutoff window disabled for testing
+    // if (isWindowClosed()) {
+    //   setWindowClosed(true);
+    //   setErrorMessage('Daily Submission Window Closed (Closes at 3:00 PM PKT)');
+    //   return;
+    // }
 
     setUploading(true);
     setErrorMessage(null);
@@ -433,31 +435,32 @@ export default function MagicLinkAccessPage() {
     );
   }
 
-  // 4. Cutoff Closed Screen
-  if (!isAdminCode && windowClosed) {
-    return (
-      <main className="bg-[#110B24] min-h-screen text-slate-100 p-4 md:p-6 max-w-md mx-auto flex items-center justify-center font-sans relative overflow-hidden">
-        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-72 h-72 bg-amber-500/15 rounded-full blur-[100px] pointer-events-none" />
-        <div className="w-full p-7 rounded-3xl bg-[#1D143D]/70 backdrop-blur-2xl border border-amber-500/25 shadow-[0_12px_40px_rgba(0,0,0,0.4)] text-center space-y-6 relative z-10">
-          <div className="p-4 rounded-3xl bg-amber-500/15 border border-amber-500/30 text-amber-400 w-fit mx-auto">
-            <Clock className="w-10 h-10" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-lg font-bold text-white">
-              Daily Submission Window Closed
-            </h2>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Assembly photos for <span className="font-semibold text-fuchsia-300">{institution.code}</span> can only be submitted before 3:00 PM Pakistan Standard Time.
-            </p>
-          </div>
-          <div className="p-4 rounded-2xl bg-[#140C2E]/80 border border-white/[0.08] text-left">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Institution Campus</p>
-            <h3 className="mt-1 text-sm font-bold text-white">{institution.name}</h3>
-          </div>
-        </div>
-      </main>
-    );
-  }
+  // TEMPORARY TEST OVERRIDE: Cutoff window disabled for testing
+  // // 4. Cutoff Closed Screen
+  // if (!isAdminCode && windowClosed) {
+  //   return (
+  //     <main className="bg-[#110B24] min-h-screen text-slate-100 p-4 md:p-6 max-w-md mx-auto flex items-center justify-center font-sans relative overflow-hidden">
+  //       <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-72 h-72 bg-amber-500/15 rounded-full blur-[100px] pointer-events-none" />
+  //       <div className="w-full p-7 rounded-3xl bg-[#1D143D]/70 backdrop-blur-2xl border border-amber-500/25 shadow-[0_12px_40px_rgba(0,0,0,0.4)] text-center space-y-6 relative z-10">
+  //         <div className="p-4 rounded-3xl bg-amber-500/15 border border-amber-500/30 text-amber-400 w-fit mx-auto">
+  //           <Clock className="w-10 h-10" />
+  //         </div>
+  //         <div className="space-y-2">
+  //           <h2 className="text-lg font-bold text-white">
+  //             Daily Submission Window Closed
+  //           </h2>
+  //           <p className="text-xs text-slate-300 leading-relaxed">
+  //             Assembly photos for <span className="font-semibold text-fuchsia-300">{institution.code}</span> can only be submitted before 3:00 PM Pakistan Standard Time.
+  //           </p>
+  //         </div>
+  //         <div className="p-4 rounded-2xl bg-[#140C2E]/80 border border-white/[0.08] text-left">
+  //           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Institution Campus</p>
+  //           <h3 className="mt-1 text-sm font-bold text-white">{institution.name}</h3>
+  //         </div>
+  //       </div>
+  //     </main>
+  //   );
+  // }
 
   // 5. Active Camera & Submit Form
   return (
