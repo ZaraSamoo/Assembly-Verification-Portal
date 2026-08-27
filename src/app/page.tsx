@@ -10,12 +10,10 @@ import {
   CheckCircle2,
   Clock,
   Download,
-  FileText,
   ImageOff,
   Loader2,
   Search,
   ShieldCheck,
-  Sparkles,
   TrendingUp,
   X,
 } from 'lucide-react';
@@ -47,9 +45,6 @@ interface CollegeRow {
   submission: Submission | null;
   displayStatus: DisplayStatus;
 }
-
-const GLASS_CARD =
-  'bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)]';
 
 function karachiISO(value?: Date) {
   return (value ?? new Date()).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
@@ -119,7 +114,7 @@ function resolveStatus(submission: Submission | null, absence: 'pending' | 'miss
 
 function statusCopy(status: DisplayStatus) {
   if (status === 'pending') return 'Pending';
-  if (status === 'missing') return 'Pending / Missing';
+  if (status === 'missing') return 'Missing';
   return 'Verified';
 }
 
@@ -348,30 +343,33 @@ export default function Home() {
   const isClosedNow = isWindowClosed(now);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-8 font-sans">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Top Header & Action Bar */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-slate-800">
+    <main className="min-h-screen bg-[#09090b] text-slate-100 font-sans">
+      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+        {/* Header & Controls Bar */}
+        <header className="border border-slate-800 bg-slate-900/60 backdrop-blur rounded-xl p-4 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-xs font-semibold tracking-wider text-slate-400 uppercase mb-1">
+            <div className="flex items-center gap-2 text-xs font-semibold tracking-wider text-slate-400 uppercase">
               <span>Government of Sindh</span>
               <span>•</span>
               <span>College Education Department</span>
             </div>
-            <h1 className="text-xl font-semibold tracking-tight text-white">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-100 mt-1">
               Assembly Verification Portal
             </h1>
           </div>
 
-          <div className="flex items-center gap-3">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(event) => setSelectedDate(event.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-slate-600 transition-colors"
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 border border-slate-800 bg-slate-900/80 hover:border-slate-700 px-3.5 py-2 rounded-lg text-xs font-medium text-slate-200 shadow-sm transition-colors focus-within:border-slate-700">
+              <Calendar className="h-4 w-4 text-slate-400" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(event) => setSelectedDate(event.target.value)}
+                className="bg-transparent outline-none text-slate-100 cursor-pointer"
+              />
+            </label>
 
-            <span className="inline-flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-300">
+            <span className="inline-flex items-center gap-2 border border-slate-800 bg-slate-900/80 px-3.5 py-2 rounded-lg text-xs font-medium text-slate-300 shadow-sm">
               <span className="relative flex h-2 w-2">
                 <span className={`absolute inset-0 rounded-full bg-emerald-400 ${live ? 'animate-ping opacity-75' : 'opacity-0'}`} />
                 <span className={`relative h-2 w-2 rounded-full ${live ? 'bg-emerald-400' : 'bg-slate-500'}`} />
@@ -382,7 +380,7 @@ export default function Home() {
             <button
               type="button"
               onClick={exportCsv}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-white text-slate-900 rounded-lg text-xs font-semibold transition-colors shadow-sm cursor-pointer"
             >
               <Download className="h-4 w-4" />
               Export Audit CSV
@@ -390,95 +388,107 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Metrics Grid (4-card grid) */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-          {/* Card 1: Total Colleges */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between">
+        {/* 4-Column KPI Grid */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Colleges</span>
-              <Building2 className="h-5 w-5 text-slate-500" />
+              <span className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Total Colleges</span>
+              <div className="p-2 rounded-lg bg-slate-800/60 border border-slate-700/50 text-slate-400">
+                <Building2 className="h-4 w-4" />
+              </div>
             </div>
-            <p className="text-3xl font-bold tracking-tight text-white my-2">{metrics.total}</p>
-            <p className="text-xs text-slate-400">Registered Campuses</p>
+            <div>
+              <p className="text-2xl font-bold tracking-tight text-slate-100">{metrics.total}</p>
+              <p className="text-xs text-slate-400 mt-1">Registered Campuses</p>
+            </div>
           </div>
 
-          {/* Card 2: Submitted Today */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between">
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Submitted Today</span>
-              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              <span className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Submitted Today</span>
+              <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
             </div>
-            <p className="text-3xl font-bold tracking-tight text-white my-2">
-              {metrics.submitted} <span className="text-sm font-normal text-slate-400">({metrics.compliance.toFixed(0)}%)</span>
-            </p>
-            <p className="text-xs text-slate-400">Verified Logged Photos</p>
+            <div>
+              <p className="text-2xl font-bold tracking-tight text-slate-100">
+                {metrics.submitted}{' '}
+                <span className="text-xs font-semibold text-slate-400">({metrics.compliance.toFixed(0)}%)</span>
+              </p>
+              <p className="text-xs text-slate-400 mt-1">Verified Logged Photos</p>
+            </div>
           </div>
 
-          {/* Card 3: Pending / Missing */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between">
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Pending / Missing</span>
-              <Clock className="h-5 w-5 text-amber-500" />
+              <span className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Pending / Missing</span>
+              <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                <Clock className="h-4 w-4" />
+              </div>
             </div>
-            <p className="text-3xl font-bold tracking-tight text-white my-2">{metrics.pending}</p>
-            <p className="text-xs text-slate-400">Awaiting Verification</p>
+            <div>
+              <p className="text-2xl font-bold tracking-tight text-slate-100">{metrics.pending}</p>
+              <p className="text-xs text-slate-400 mt-1">Awaiting Verification</p>
+            </div>
           </div>
 
-          {/* Card 4: Compliance Rate */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between">
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Compliance Rate</span>
-              <TrendingUp className="h-5 w-5 text-slate-500" />
+              <span className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Compliance Rate</span>
+              <div className="p-2 rounded-lg bg-slate-800/60 border border-slate-700/50 text-slate-400">
+                <TrendingUp className="h-4 w-4" />
+              </div>
             </div>
-            <p className="text-3xl font-bold tracking-tight text-white my-2">{metrics.compliance.toFixed(1)}%</p>
-            <p className="text-xs text-slate-400">{metrics.submitted} of {metrics.total} colleges</p>
+            <div>
+              <p className="text-2xl font-bold tracking-tight text-slate-100">{metrics.compliance.toFixed(1)}%</p>
+              <p className="text-xs text-slate-400 mt-1">
+                {metrics.submitted} of {metrics.total} colleges
+              </p>
+            </div>
           </div>
         </section>
 
-        {/* ANALYTICS & SUBMISSIONS SECTION (2-Column Asymmetric Grid) */}
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Daily Compliance Breakdown Bar (2 Columns) */}
-          <article className="lg:col-span-2 bg-[#1D143D]/70 border border-white/[0.08] rounded-3xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col justify-between space-y-4">
-            <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
+        {/* Analytics Section */}
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <article className="lg:col-span-2 rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur p-5 sm:p-6 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-fuchsia-400" />
+                <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-slate-400" />
                   7-Day Compliance Breakdown
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">Daily institutional submission performance in PKT</p>
+                <p className="text-xs text-slate-400 mt-0.5">Daily institutional submission performance in PKT</p>
               </div>
-              <span className="text-[10px] font-bold text-fuchsia-300 uppercase tracking-wider bg-fuchsia-500/10 px-3 py-1 rounded-full border border-fuchsia-500/20">
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-800/60 px-2.5 py-1 rounded-md border border-slate-700/50">
                 PKT Analytics
               </span>
             </div>
 
-            {/* Strict Fixed-Height Area Spline Chart Container */}
             <div className="h-56 w-full relative">
               <svg viewBox="0 0 500 180" className="w-full h-full overflow-visible" preserveAspectRatio="none">
                 <defs>
-                  <linearGradient id="plumGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#E056FD" stopOpacity="0.45" />
-                    <stop offset="100%" stopColor="#E056FD" stopOpacity="0" />
+                  <linearGradient id="slateGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#34d399" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
                   </linearGradient>
                 </defs>
 
-                {/* Grid Lines */}
-                <line x1="0" y1="30" x2="500" y2="30" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
-                <line x1="0" y1="80" x2="500" y2="80" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
-                <line x1="0" y1="130" x2="500" y2="130" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+                <line x1="0" y1="30" x2="500" y2="30" stroke="rgba(148,163,184,0.12)" strokeDasharray="4 4" />
+                <line x1="0" y1="80" x2="500" y2="80" stroke="rgba(148,163,184,0.12)" strokeDasharray="4 4" />
+                <line x1="0" y1="130" x2="500" y2="130" stroke="rgba(148,163,184,0.12)" strokeDasharray="4 4" />
 
-                <path d={chart.areaD} fill="url(#plumGradient)" />
-                <path d={chart.d} fill="none" stroke="#E056FD" strokeWidth="3" />
+                <path d={chart.areaD} fill="url(#slateGradient)" />
+                <path d={chart.d} fill="none" stroke="#34d399" strokeWidth="2.5" />
 
                 {chart.points.map((point, index) => (
                   <g key={trend[index]?.date}>
                     <circle
                       cx={point.x}
                       cy={point.y}
-                      r={hoverDay === index ? 6 : 4}
-                      fill="#ffffff"
-                      stroke="#E056FD"
-                      strokeWidth="2.5"
+                      r={hoverDay === index ? 5 : 3.5}
+                      fill="#09090b"
+                      stroke="#34d399"
+                      strokeWidth="2"
                       className="cursor-pointer transition-all duration-150"
                       onMouseEnter={() => setHoverDay(index)}
                       onMouseLeave={() => setHoverDay(null)}
@@ -488,66 +498,68 @@ export default function Home() {
               </svg>
 
               {hoverDay !== null && trend[hoverDay] && (
-                <div className="pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 rounded-xl border border-white/[0.08] bg-[#1E1442]/95 px-3.5 py-2 text-xs text-white shadow-xl backdrop-blur-md">
-                  <span className="font-bold text-fuchsia-300">{trend[hoverDay].label}</span> ({trend[hoverDay].date}):{' '}
-                  <span className="font-bold text-emerald-300">{trend[hoverDay].submitted}</span> submitted ({trend[hoverDay].pct.toFixed(0)}%)
+                <div className="pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100 shadow-lg">
+                  <span className="font-semibold text-slate-300">{trend[hoverDay].label}</span> ({trend[hoverDay].date}):{' '}
+                  <span className="font-semibold text-emerald-400">{trend[hoverDay].submitted}</span> submitted (
+                  {trend[hoverDay].pct.toFixed(0)}%)
                 </div>
               )}
             </div>
 
-            <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1 pt-1">
+            <div className="flex justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-1">
               {trend.map((day) => (
-                <span key={day.date} className="hover:text-fuchsia-300 transition-colors">
+                <span key={day.date} className="hover:text-slate-300 transition-colors">
                   {day.label}
                 </span>
               ))}
             </div>
           </article>
 
-          {/* Right: Policy & Cutoff Card with clear window status (1 Column) */}
-          <article className="lg:col-span-1 bg-[#1D143D]/70 border border-white/[0.08] rounded-3xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col justify-between space-y-4">
-            <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-fuchsia-400" />
+          <article className="lg:col-span-1 rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur p-5 sm:p-6 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-slate-400" />
                 Policy &amp; Cutoff Rules
               </h3>
-              <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
-                isClosedNow
-                  ? 'bg-rose-500/10 text-rose-300 border-rose-500/20'
-                  : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
-              }`}>
+              <span
+                className={`text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-md border ${
+                  isClosedNow
+                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                }`}
+              >
                 {isClosedNow ? 'Window Closed' : 'Window Active'}
               </span>
             </div>
 
             <div className="space-y-3 py-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-400">Daily Cutoff Window:</span>
-                <span className="text-xs font-bold text-fuchsia-300 font-mono">3:00 PM PKT</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs text-slate-400">Daily Cutoff Window</span>
+                <span className="text-xs font-semibold text-slate-100 font-mono">3:00 PM PKT</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-400">Timezone Evaluation:</span>
-                <span className="text-xs font-bold text-white font-mono">Asia/Karachi (UTC+5)</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs text-slate-400">Timezone Evaluation</span>
+                <span className="text-xs font-semibold text-slate-100 font-mono">Asia/Karachi</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-400">Binary Status Policy:</span>
-                <span className="text-xs font-bold text-emerald-300">Submitted vs Missing</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs text-slate-400">Binary Status Policy</span>
+                <span className="text-xs font-semibold text-emerald-400">Submitted vs Missing</span>
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-[#170E33]/80 border border-white/[0.06] text-xs text-slate-300 space-y-2 leading-relaxed">
-              <p className="font-semibold text-white">Cutoff Evaluation Rule:</p>
-              <p className="text-[11px] text-slate-400">
-                Submissions captured prior to 3:00 PM PKT display as Verified or Pending. After 3:00 PM PKT, unsubmitted institutions transition strictly to Missing / Absent status.
+            <div className="p-4 rounded-lg bg-slate-950/60 border border-slate-800 text-xs space-y-2">
+              <p className="font-semibold text-slate-200">Cutoff Evaluation Rule</p>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Submissions captured prior to 3:00 PM PKT display as Verified or Pending. After 3:00 PM PKT,
+                unsubmitted institutions transition strictly to Missing / Absent status.
               </p>
             </div>
           </article>
         </section>
 
         {/* Institutional Submissions Feed */}
-        <section className="bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-5 sm:p-6 space-y-4 shadow-[0_12px_40px_rgba(0,0,0,0.4)]">
+        <section className="rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur p-5 sm:p-6 space-y-4 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            {/* Segmented Filter Pills */}
             <div className="flex flex-wrap gap-2">
               {(
                 [
@@ -560,10 +572,10 @@ export default function Home() {
                   key={id}
                   type="button"
                   onClick={() => setStatusTab(id)}
-                  className={`rounded-full px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
+                  className={`rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors cursor-pointer border ${
                     statusTab === id
-                      ? 'bg-fuchsia-600/30 border border-fuchsia-500/40 text-fuchsia-200 shadow-[0_0_20px_rgba(217,70,239,0.25)]'
-                      : 'border border-white/[0.08] bg-[#20183F]/60 text-slate-400 hover:text-white'
+                      ? 'bg-slate-100 text-slate-900 border-slate-100'
+                      : 'border-slate-800 bg-slate-900/80 text-slate-400 hover:text-slate-200 hover:border-slate-700'
                   }`}
                 >
                   {label}
@@ -571,20 +583,19 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Dark Pill Search Input */}
             <label className="relative min-w-0 flex-1 sm:max-w-xs">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search college name or code..."
-                className="bg-[#1E1442] border border-white/10 rounded-full px-4 py-2.5 pl-9.5 text-xs text-white placeholder-slate-400 outline-none focus:border-fuchsia-500/50 w-full transition-all"
+                className="w-full bg-slate-950/60 border border-slate-800 hover:border-slate-700 focus:border-slate-600 rounded-lg px-3.5 py-2 pl-9 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
               />
             </label>
           </div>
 
           {errorMessage && (
-            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300 flex items-center gap-2">
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300 flex items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
               <span>{errorMessage}</span>
             </div>
@@ -592,28 +603,28 @@ export default function Home() {
 
           {loading ? (
             <div className="flex flex-col items-center justify-center gap-3 py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-fuchsia-400" />
+              <Loader2 className="h-7 w-7 animate-spin text-slate-400" />
               <p className="text-xs text-slate-400">Syncing live institutional feed...</p>
             </div>
           ) : filteredRows.length === 0 ? (
             <div className="py-20 text-center text-xs text-slate-400">No colleges match the current search filters.</div>
           ) : (
-            <div className="max-h-[64vh] space-y-3 overflow-y-auto pr-1">
+            <div className="max-h-[64vh] space-y-2 overflow-y-auto pr-1">
               {filteredRows.map((row) => {
                 const isPending = row.displayStatus === 'pending' || row.displayStatus === 'missing';
                 return (
                   <article
                     key={asId(row.institution.id)}
-                    className="bg-[#1D143D]/70 hover:bg-[#251B4E] border border-white/[0.06] rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all duration-200"
+                    className="rounded-lg border border-slate-800/80 bg-slate-950/40 hover:border-slate-700 hover:bg-slate-900/50 p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors"
                   >
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <span className="bg-[#2E245C] text-fuchsia-300 border border-fuchsia-500/20 px-3 py-1 rounded-xl text-xs font-bold font-mono tracking-wider shrink-0 shadow-sm">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="bg-slate-800/80 text-slate-300 border border-slate-700/50 px-2.5 py-1 rounded-md text-xs font-semibold font-mono tracking-wider shrink-0">
                         {row.institution.code}
                       </span>
 
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-white truncate leading-relaxed">{row.institution.name}</p>
-                        <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                        <p className="text-sm font-semibold text-slate-100 truncate">{row.institution.name}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
                           {row.submission
                             ? `Logged at ${karachiClock(row.submission.submission_time || row.submission.created_at)} PKT`
                             : 'Awaiting daily assembly capture'}
@@ -623,10 +634,10 @@ export default function Home() {
 
                     <div className="flex items-center gap-3 shrink-0">
                       <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                        className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${
                           isPending
-                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                            : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20 shadow-[0_0_14px_rgba(16,185,129,0.2)]'
+                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                         }`}
                       >
                         {statusCopy(row.displayStatus)}
@@ -636,13 +647,17 @@ export default function Home() {
                         <button
                           type="button"
                           onClick={() => setLightboxRow(row)}
-                          className="h-12 w-16 shrink-0 overflow-hidden rounded-xl border border-white/[0.08] hover:border-fuchsia-500/40 transition-all cursor-pointer"
+                          className="h-11 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-800 hover:border-slate-600 transition-colors cursor-pointer"
                           aria-label={`Inspect photo for ${row.institution.name}`}
                         >
-                          <img src={row.submission.image_url} alt="" className="h-full w-full object-cover hover:scale-105 transition-transform" />
+                          <img
+                            src={row.submission.image_url}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
                         </button>
                       ) : (
-                        <div className="flex h-12 w-16 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-[#120D26]/50 text-slate-500">
+                        <div className="flex h-11 w-14 shrink-0 items-center justify-center rounded-lg border border-slate-800 bg-slate-950/60 text-slate-600">
                           <ImageOff className="h-4 w-4" />
                         </div>
                       )}
@@ -655,40 +670,40 @@ export default function Home() {
         </section>
       </div>
 
-      {/* High-Resolution Lightbox Inspection Modal */}
       {lightboxRow?.submission?.image_url && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B081A]/85 p-4 backdrop-blur-2xl"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
           onClick={() => setLightboxRow(null)}
         >
           <div
-            className="bg-[#1D143D]/90 backdrop-blur-2xl border border-white/[0.08] rounded-3xl max-h-[92vh] w-full max-w-4xl overflow-hidden shadow-2xl"
+            className="bg-slate-900 border border-slate-800 rounded-xl max-h-[92vh] w-full max-w-4xl overflow-hidden shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4 p-5 border-b border-white/[0.08]">
+            <div className="flex items-start justify-between gap-4 p-5 border-b border-slate-800">
               <div>
-                <span className="bg-[#2E245C] text-fuchsia-300 border border-fuchsia-500/20 px-3 py-1 rounded-xl text-xs font-bold font-mono">
+                <span className="bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1 rounded-md text-xs font-semibold font-mono">
                   {lightboxRow.institution.code}
                 </span>
-                <h3 className="mt-2 text-lg font-bold text-white leading-relaxed">{lightboxRow.institution.name}</h3>
-                <p className="mt-0.5 text-xs text-slate-400 leading-relaxed">
-                  Submission Timestamp: {karachiClock(lightboxRow.submission.submission_time || lightboxRow.submission.created_at)} PKT
+                <h3 className="mt-2 text-lg font-semibold text-slate-100">{lightboxRow.institution.name}</h3>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  Submission Timestamp:{' '}
+                  {karachiClock(lightboxRow.submission.submission_time || lightboxRow.submission.created_at)} PKT
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setLightboxRow(null)}
-                className="rounded-full border border-white/[0.08] p-2 text-slate-300 hover:bg-white/10 transition-colors cursor-pointer"
+                className="rounded-lg border border-slate-800 p-2 text-slate-400 hover:text-slate-100 hover:border-slate-700 transition-colors cursor-pointer"
                 aria-label="Close modal"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="p-5 flex justify-center bg-[#130E29]/60">
+            <div className="p-5 flex justify-center bg-slate-950/60">
               <img
                 src={lightboxRow.submission.image_url}
                 alt={`Assembly photo for ${lightboxRow.institution.name}`}
-                className="max-h-[68vh] w-full rounded-2xl object-contain shadow-2xl"
+                className="max-h-[68vh] w-full rounded-lg object-contain"
               />
             </div>
           </div>
