@@ -348,44 +348,30 @@ export default function Home() {
   const isClosedNow = isWindowClosed(now);
 
   return (
-    <div className="bg-[#110B24] text-slate-100 min-h-screen p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 font-sans relative overflow-hidden">
-      {/* Background Velvet Plum Ambient Radial Mesh Glow */}
-      <div
-        className="pointer-events-none absolute inset-0 z-0"
-        style={{
-          backgroundImage:
-            'radial-gradient(circle at 80% 10%, rgba(217, 70, 239, 0.12) 0%, transparent 60%), radial-gradient(circle at 15% 90%, rgba(99, 102, 241, 0.14) 0%, transparent 60%)',
-        }}
-      />
-
-      <div className="relative z-10 space-y-6">
-        {/* 3. Header & Controls Layout */}
-        <header className="bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-fuchsia-400">
-                Government of Sindh
-              </span>
-              <span className="text-slate-600">•</span>
-              <span className="text-xs font-semibold text-slate-400">College Education Department</span>
+    <main className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-8 font-sans">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Top Header & Action Bar */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold tracking-wider text-slate-400 uppercase mb-1">
+              <span>Government of Sindh</span>
+              <span>•</span>
+              <span>College Education Department</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-extrabold bg-gradient-to-r from-white via-slate-100 to-fuchsia-300 bg-clip-text text-transparent leading-relaxed">
+            <h1 className="text-xl font-semibold tracking-tight text-white">
               Assembly Verification Portal
             </h1>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex h-10 items-center gap-2 rounded-2xl border border-white/[0.08] bg-[#1E1442]/80 px-3.5 text-xs text-slate-200 shadow-inner">
-              <Calendar className="h-4 w-4 text-fuchsia-400" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(event) => setSelectedDate(event.target.value)}
-                className="bg-transparent font-semibold outline-none text-white cursor-pointer"
-              />
-            </label>
+          <div className="flex items-center gap-3">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(event) => setSelectedDate(event.target.value)}
+              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-slate-600 transition-colors"
+            />
 
-            <span className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3.5 py-2 text-xs font-semibold text-emerald-300">
+            <span className="inline-flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-300">
               <span className="relative flex h-2 w-2">
                 <span className={`absolute inset-0 rounded-full bg-emerald-400 ${live ? 'animate-ping opacity-75' : 'opacity-0'}`} />
                 <span className={`relative h-2 w-2 rounded-full ${live ? 'bg-emerald-400' : 'bg-slate-500'}`} />
@@ -396,7 +382,7 @@ export default function Home() {
             <button
               type="button"
               onClick={exportCsv}
-              className="bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:from-fuchsia-500 hover:to-indigo-500 text-white rounded-2xl px-4 py-2 text-xs font-bold shadow-lg shadow-fuchsia-600/25 transition active:scale-[0.98] cursor-pointer inline-flex items-center gap-2"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
             >
               <Download className="h-4 w-4" />
               Export Audit CSV
@@ -404,62 +390,48 @@ export default function Home() {
           </div>
         </header>
 
-        {/* 2. Fix 4-Column Grid: Responsive 4-column grid */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Card 1: Total Colleges (Coral Accent) */}
-          <div className="bg-gradient-to-br from-[#FF6B6B]/15 via-[#231849]/60 to-[#191136]/90 border border-[#FF6B6B]/25 rounded-3xl p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#FF8E53]">Total Colleges</p>
-              <p className="text-3xl font-extrabold text-white leading-tight">{metrics.total}</p>
-              <p className="text-[11px] text-slate-300/70 leading-relaxed">Registered Campuses</p>
+        {/* Metrics Grid (4-card grid) */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+          {/* Card 1: Total Colleges */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Colleges</span>
+              <Building2 className="h-5 w-5 text-slate-500" />
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF6B6B]/20 text-[#FF6B6B] border border-[#FF6B6B]/40 shadow-inner shrink-0">
-              <Building2 className="h-6 w-6" />
-            </div>
+            <p className="text-3xl font-bold tracking-tight text-white my-2">{metrics.total}</p>
+            <p className="text-xs text-slate-400">Registered Campuses</p>
           </div>
 
-          {/* Card 2: Submitted Today (Fuchsia Accent) */}
-          <div className="bg-gradient-to-br from-[#E056FD]/15 via-[#231849]/60 to-[#191136]/90 border border-[#E056FD]/25 rounded-3xl p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#E056FD]">Submitted Today</p>
-              <p className="text-3xl font-extrabold text-emerald-300 leading-tight">
-                {metrics.submitted} <span className="text-xs font-bold text-emerald-400/80 font-normal">({metrics.submitted} ({metrics.compliance.toFixed(0)}%))</span>
-              </p>
-              <p className="text-[11px] text-slate-300/70 leading-relaxed">Verified Logged Photos</p>
+          {/* Card 2: Submitted Today */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Submitted Today</span>
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E056FD]/20 text-[#E056FD] border border-[#E056FD]/40 shadow-inner shrink-0">
-              <CheckCircle2 className="h-6 w-6" />
-            </div>
+            <p className="text-3xl font-bold tracking-tight text-white my-2">
+              {metrics.submitted} <span className="text-sm font-normal text-slate-400">({metrics.compliance.toFixed(0)}%)</span>
+            </p>
+            <p className="text-xs text-slate-400">Verified Logged Photos</p>
           </div>
 
-          {/* Card 3: Pending / Missing (Lavender Accent) */}
-          <div className="bg-gradient-to-br from-[#a29bfe]/15 via-[#231849]/60 to-[#191136]/90 border border-[#a29bfe]/25 rounded-3xl p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#a29bfe]">Pending / Missing</p>
-              <p className="text-3xl font-extrabold text-amber-300 leading-tight">{metrics.pending}</p>
-              <p className="text-[11px] text-slate-300/70 leading-relaxed">Awaiting Verification</p>
+          {/* Card 3: Pending / Missing */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Pending / Missing</span>
+              <Clock className="h-5 w-5 text-amber-500" />
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#6C5CE7]/20 text-[#a29bfe] border border-[#6C5CE7]/40 shadow-inner shrink-0">
-              <Clock className="h-6 w-6" />
-            </div>
+            <p className="text-3xl font-bold tracking-tight text-white my-2">{metrics.pending}</p>
+            <p className="text-xs text-slate-400">Awaiting Verification</p>
           </div>
 
-          {/* Card 4: Compliance Rate (Cyan Accent with Smooth Progress Bar) */}
-          <div className="rounded-3xl bg-gradient-to-br from-[#00d2d3]/15 via-[#231849]/60 to-[#191136]/90 border border-[#00d2d3]/25 p-5 shadow-[0_12px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl flex items-center justify-between">
-            <div className="w-full space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#00d2d3]">Compliance Rate</p>
-                <TrendingUp className="h-5 w-5 text-[#00d2d3]" />
-              </div>
-              <p className="text-3xl font-extrabold text-white leading-tight">{metrics.compliance.toFixed(1)}%</p>
-              <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#00d2d3] to-emerald-400 transition-all duration-500"
-                  style={{ width: `${Math.min(100, Math.max(0, metrics.compliance))}%` }}
-                />
-              </div>
-              <p className="text-[11px] text-slate-300/70 leading-relaxed">{metrics.submitted} of {metrics.total} colleges</p>
+          {/* Card 4: Compliance Rate */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Compliance Rate</span>
+              <TrendingUp className="h-5 w-5 text-slate-500" />
             </div>
+            <p className="text-3xl font-bold tracking-tight text-white my-2">{metrics.compliance.toFixed(1)}%</p>
+            <p className="text-xs text-slate-400">{metrics.submitted} of {metrics.total} colleges</p>
           </div>
         </section>
 
@@ -722,6 +694,6 @@ export default function Home() {
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }
