@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
   Camera,
   Upload,
@@ -98,7 +98,8 @@ function isWindowClosed(d = new Date()) {
 
 export default function MagicLinkAccessPage() {
   const params = useParams();
-  const code = (params?.code as string) || '';
+  const router = useRouter();
+  const rawCode = (params?.code as string) || '';
 
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [loading, setLoading] = useState(true);
@@ -117,9 +118,17 @@ export default function MagicLinkAccessPage() {
   const cameraTriggeredRef = useRef(false);
 
   const loadInstitution = useCallback(async () => {
-    if (!code) {
+    if (!rawCode) {
       setInvalidLink(true);
       setLoading(false);
+      return;
+    }
+
+    const cleanCode = decodeURIComponent(rawCode).trim().toUpperCase();
+
+    // 1. Administrative Short Code Interception
+    if (cleanCode === 'RD-FIN-SINDH' || cleanCode === 'OFFICER-SINDH') {
+      router.replace('/');
       return;
     }
 
@@ -129,18 +138,18 @@ export default function MagicLinkAccessPage() {
     try {
       const supabase = createClient();
 
-      // Case-insensitive query on institutions where short_code matches parameter
+      // Case-insensitive query on institutions where code or short_code matches parameter
       const queryInst: any = supabase.from('institutions');
       let { data, error } = await queryInst
         .select('id, name, code, short_code')
-        .ilike('short_code', code)
+        .ilike('code', cleanCode)
         .maybeSingle();
 
       if (error || !data) {
-        // Fallback matching code column
+        // Fallback matching short_code column
         const fallbackRes = await queryInst
           .select('id, name, code, short_code')
-          .ilike('code', code)
+          .ilike('short_code', cleanCode)
           .maybeSingle();
         data = fallbackRes.data;
         error = fallbackRes.error;
@@ -186,7 +195,7 @@ export default function MagicLinkAccessPage() {
     } finally {
       setLoading(false);
     }
-  }, [code]);
+  }, [rawCode, router]);
 
   useEffect(() => {
     loadInstitution();
@@ -329,21 +338,18 @@ export default function MagicLinkAccessPage() {
     );
   }
 
-  // 2. Invalid or Expired Link
+  // 2. Invalid or Expired Link (Sleek Velvet Plum Error Card)
   if (invalidLink || !institution) {
     return (
       <main className="bg-[#110B24] min-h-screen text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center font-sans relative overflow-hidden">
-        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-72 h-72 bg-rose-600/15 rounded-full blur-[100px] pointer-events-none" />
-        <div className="w-full p-8 rounded-3xl bg-[#1D143D]/70 backdrop-blur-2xl border border-rose-500/20 shadow-[0_12px_40px_rgba(0,0,0,0.4)] text-center space-y-5 relative z-10">
+        <div className="bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] rounded-3xl p-8 max-w-md mx-auto text-center space-y-3 shadow-2xl relative z-10">
           <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/25 text-rose-400 w-fit mx-auto shadow-inner">
             <AlertOctagon className="w-8 h-8" />
           </div>
-          <div className="space-y-1.5">
-            <h2 className="text-lg font-bold text-white">Invalid or Expired Link</h2>
-            <p className="text-xs text-slate-300 leading-relaxed px-2">
-              This assembly verification link is invalid, expired, or revoked. Please contact your regional administrator to issue a new verification link.
-            </p>
-          </div>
+          <h2 className="text-lg font-bold text-white">Institutional Code Unregistered</h2>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            The requested institutional code is invalid, unregistered, or expired. Please verify your link or contact your regional administrator.
+          </p>
         </div>
       </main>
     );
