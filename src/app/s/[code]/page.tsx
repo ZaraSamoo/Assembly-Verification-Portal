@@ -101,13 +101,14 @@ export default function MagicLinkAccessPage() {
   const router = useRouter();
   const rawCode = (params?.code as string) || '';
   const cleanCode = decodeURIComponent(String(rawCode)).trim().toUpperCase();
+  const isAdminCode = cleanCode === 'RD-FIN-SINDH' || cleanCode === 'OFFICER-SINDH';
 
   // Instant 24/7 Admin Interception before any cutoff or DB state initialization
   useEffect(() => {
-    if (cleanCode === 'RD-FIN-SINDH' || cleanCode === 'OFFICER-SINDH') {
+    if (isAdminCode) {
       router.replace('/');
     }
-  }, [cleanCode, router]);
+  }, [isAdminCode, router]);
 
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [loading, setLoading] = useState(true);
@@ -126,7 +127,7 @@ export default function MagicLinkAccessPage() {
   const cameraTriggeredRef = useRef(false);
 
   const loadInstitution = useCallback(async () => {
-    if (cleanCode === 'RD-FIN-SINDH' || cleanCode === 'OFFICER-SINDH') {
+    if (isAdminCode) {
       router.replace('/');
       return;
     }
@@ -325,6 +326,24 @@ export default function MagicLinkAccessPage() {
     }
   };
 
+  // 0. Admin Interception Loading Screen
+  if (isAdminCode) {
+    return (
+      <main className="bg-[#110B24] min-h-screen text-slate-100 p-4 max-w-md mx-auto flex flex-col items-center justify-center font-sans relative overflow-hidden">
+        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-72 h-72 bg-fuchsia-600/15 rounded-full blur-[100px] pointer-events-none" />
+        <div className="w-full p-8 rounded-3xl bg-[#1D143D]/70 backdrop-blur-2xl border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.4)] flex flex-col items-center gap-4 text-center relative z-10">
+          <div className="w-12 h-12 rounded-2xl bg-fuchsia-500/15 border border-fuchsia-500/25 flex items-center justify-center">
+            <Loader2 className="w-6 h-6 text-fuchsia-400 animate-spin" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-white">Opening Administrative Dashboard</h3>
+            <p className="text-xs text-slate-400">Bypassing submission window for oversight officer access...</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   // 1. Loading Screen (Deep Plum Frosted Spinner)
   if (loading) {
     return (
@@ -415,7 +434,7 @@ export default function MagicLinkAccessPage() {
   }
 
   // 4. Cutoff Closed Screen
-  if (windowClosed) {
+  if (!isAdminCode && windowClosed) {
     return (
       <main className="bg-[#110B24] min-h-screen text-slate-100 p-4 md:p-6 max-w-md mx-auto flex items-center justify-center font-sans relative overflow-hidden">
         <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-72 h-72 bg-amber-500/15 rounded-full blur-[100px] pointer-events-none" />

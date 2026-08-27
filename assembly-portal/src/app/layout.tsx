@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   description: "Government of Sindh daily assembly compliance dashboard",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
